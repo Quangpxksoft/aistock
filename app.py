@@ -107,8 +107,8 @@ from utils import (
     data_cleaner, portfolio_optimizer, risk_metrics,
     backtest, performance, strategy, reporting
 )
-from init_db import create_db
-create_db()
+# from init_db import create_db
+# create_db()
 
 # Khởi tạo ngày duy nhất cho toàn bộ session
 if "today_str" not in st.session_state:
@@ -3908,6 +3908,13 @@ def page_home():
                                     include_forecast=include_forecast,
                                     include_optimization=include_optimization,
                                 )
+                                with safe_open_pdf(pdf_file_path) as f:
+                                        st.download_button(
+                                            label="📥 Tải về báo cáo",
+                                            data=f,
+                                            file_name=filename,
+                                            mime="application/pdf"
+                                        )
 
                                 st.success(f"✅ Đã xuất báo cáo: `{pdf_path}`")
                                 
