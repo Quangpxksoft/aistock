@@ -107,6 +107,8 @@ from utils import (
     data_cleaner, portfolio_optimizer, risk_metrics,
     backtest, performance, strategy, reporting
 )
+from init_db import create_db
+create_db()
 
 # Khởi tạo ngày duy nhất cho toàn bộ session
 if "today_str" not in st.session_state:
