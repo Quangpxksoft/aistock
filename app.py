@@ -200,17 +200,17 @@ def init_session_keys():
         "enter_home": False,
         "batch_size": 20,
         "mem_safe": True,
-        if "from_date" not in st.session_state:
-            st.session_state["from_date"] = date(2023, 1, 1)
-
-        if "to_date" not in st.session_state:
-            st.session_state["to_date"] = date.today()
     }
+
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
+    if "from_date" not in st.session_state:
+        st.session_state["from_date"] = date(2023, 1, 1)
 
+    if "to_date" not in st.session_state:
+        st.session_state["to_date"] = date.today()
 # -------------------- HÀM ĐỊNH DẠNG TIỀN NGUYÊN --------------------
 def format_currency(x):
     """
