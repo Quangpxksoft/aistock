@@ -1,0 +1,156 @@
+{
+  "tab": "optimize",
+  "title": "📈 Tối ưu danh mục",
+  "sections": {
+    "optimization_summary": {
+      "title": "📊 Tóm tắt tối ưu",
+      "faqs": [
+        {
+          "questions": [
+            "Tối ưu danh mục là gì?",
+            "Mục đích của tối ưu hóa?",
+            "Hệ thống dùng phương pháp gì để tối ưu?"
+          ],
+          "keywords": ["tối ưu", "optimization", "portfolio optimization"],
+          "answer": "Tối ưu danh mục là quá trình phân bổ tỷ trọng các mã cổ phiếu để đạt mục tiêu tối đa hóa lợi nhuận và giảm thiểu rủi ro, dựa trên dữ liệu quá khứ, rủi ro, và các hạn chế của nhà đầu tư.",
+          "user_definition": "Là bài toán chọn tỷ trọng w_i cho mỗi mã cổ phiếu sao cho hàm mục tiêu (lợi nhuận kỳ vọng cao, rủi ro thấp) được tối ưu trong khi tuân thủ ràng buộc (∑w_i = 1, w_i ≥ 0).",
+          "formula": "Min Var: min_w (wᵀΣw)  subject to wᵀ1 = 1. \nMax Sharpe: max_w (wᵀμ - Rf) / sqrt(wᵀΣw).",
+          "example": "Ví dụ: Với 3 mã A, B, C; μ=[0.1,0.15,0.12], Σ tính từ dữ liệu lịch sử. Bài toán sẽ tìm w=[0.4,0.3,0.3] sao cho Sharpe cao nhất.",
+          "notes": "Có nhiều phương pháp tối ưu: Markowitz (mean-variance), Risk Parity, Hierarchical Risk Parity (HRP)."
+        },
+        {
+          "questions": [
+            "Các chỉ số dùng để tối ưu là gì?",
+            "Sharpe Ratio và Sortino Ratio dùng ra sao trong tối ưu?",
+            "Có tính đến Volatility hay Max Drawdown không?"
+          ],
+          "keywords": ["sharpe", "sortino", "volatility", "mdd", "max drawdown"],
+          "answer": "Hệ thống tối ưu dựa trên các chỉ số rủi ro và lợi nhuận như Sharpe Ratio, Sortino Ratio, Volatility, Max Drawdown để cân đối giữa lợi nhuận kỳ vọng và mức rủi ro chấp nhận được.",
+          "user_definition": "Người dùng có thể chọn hàm mục tiêu tối ưu: maximize Sharpe, maximize Sortino, minimize volatility, hoặc minimize drawdown.",
+          "formula": {
+            "Sharpe": "(wᵀμ - Rf) / sqrt(wᵀΣw)",
+            "Sortino": "(wᵀμ - Rf) / downside_volatility",
+            "Volatility": "sqrt(wᵀΣw)",
+            "MaxDrawdown": "max peak-to-trough drop của portfolio value"
+          },
+          "notes": "Sortino tập trung vào downside risk. Khi tối ưu Max Drawdown thường dùng historical backtest thay vì công thức đóng."
+        }
+      ]
+    },
+    "allocation": {
+      "title": "💸 Phân bổ vốn",
+      "columns": [
+        {
+          "name": "Ticker",
+          "description": "Mã cổ phiếu trong danh mục.",
+          "type": "string",
+          "user_definition": "Người dùng nhận biết cổ phiếu nào được phân bổ vốn.",
+          "example": "FPT, VNM, AAPL, MSFT"
+        },
+        {
+          "name": "Weight",
+          "description": "Tỷ trọng gốc của cổ phiếu trong danh mục (0-1).",
+          "type": "float",
+          "formula": "do portfolio_optimizer tính dựa trên rủi ro và hiệu quả lợi nhuận",
+          "user_definition": "Cho biết cổ phiếu chiếm bao nhiêu phần trong danh mục trước điều chỉnh.",
+          "example": "Weight = 0.25 nghĩa là cổ phiếu chiếm 25% danh mục."
+        },
+        {
+          "name": "Capital",
+          "description": "Vốn phân bổ tương ứng với tỷ trọng gốc và tổng vốn.",
+          "type": "float",
+          "formula": "Capital = Weight * Total_Capital",
+          "user_definition": "Số tiền thực tế được phân bổ cho mỗi cổ phiếu.",
+          "example": "Tổng vốn = 100 triệu, Weight=0.2 → Capital=20 triệu."
+        }
+      ],
+      "faqs": [
+        {
+          "questions": [
+            "Bảng phân bổ vốn hiển thị gì?",
+            "Cột Weight và Capital có ý nghĩa gì?",
+            "Vốn phân bổ dựa trên tỷ trọng ra sao?"
+          ],
+          "keywords": ["phân bổ vốn", "allocation", "tỷ trọng", "capital"],
+          "answer": "Bảng phân bổ vốn hiển thị tỷ trọng gốc và số vốn phân bổ theo tổng vốn nhập. Giúp người dùng dễ theo dõi và quản lý danh mục.",
+          "notes": "Nếu tổng Weight ≠ 1 cần chuẩn hoá trước khi tính Capital."
+        }
+      ]
+    },
+    "risk_adjusted_allocation": {
+      "title": "⚖️ Phân bổ nâng cao theo rủi ro",
+      "columns": [
+        {
+          "name": "Volatility",
+          "description": "Độ biến động (risk) của cổ phiếu từ kết quả phân tích rủi ro.",
+          "type": "float",
+          "formula": "Lấy giá trị Volatility từ tab Phân tích rủi ro",
+          "user_definition": "Người dùng đánh giá rủi ro từng cổ phiếu trước khi điều chỉnh tỷ trọng.",
+          "example": "FPT Volatility=20%, VNM Volatility=10%."
+        },
+        {
+          "name": "AdjWeight",
+          "description": "Tỷ trọng điều chỉnh theo rủi ro: cổ phiếu biến động cao sẽ giảm tỷ trọng.",
+          "type": "float",
+          "formula": "AdjWeight_i = (1 / Volatility_i) / Σ (1 / Volatility_j)",
+          "user_definition": "Cho biết tỷ trọng danh mục sau khi cân bằng rủi ro.",
+          "example": "Nếu Vol=[0.2,0.1] → InvVol=[5,10] → AdjWeight=[0.33,0.67]."
+        },
+        {
+          "name": "AdjCapital",
+          "description": "Vốn phân bổ điều chỉnh = AdjWeight * Total_Capital",
+          "type": "float",
+          "formula": "AdjCapital = AdjWeight * Total_Capital",
+          "user_definition": "Số tiền thực tế được phân bổ sau điều chỉnh rủi ro.",
+          "example": "Tổng vốn 100 triệu, AdjWeight=0.67 → AdjCapital=67 triệu."
+        }
+      ],
+      "faqs": [
+        {
+          "questions": [
+            "Phân bổ nâng cao là gì?",
+            "Tại sao phải điều chỉnh theo Volatility?",
+            "AdjWeight và AdjCapital tính như thế nào?"
+          ],
+          "keywords": ["phân bổ nâng cao", "adjweight", "adjcapital", "rủi ro"],
+          "answer": "Phân bổ nâng cao điều chỉnh tỷ trọng dựa trên độ biến động (Volatility) để giảm rủi ro. Tỷ trọng cao cho cổ phiếu ổn định, thấp cho cổ phiếu biến động mạnh.",
+          "notes": "Đây là phương pháp Inverse Volatility Weighting; mở rộng hơn có Risk Parity (dùng covariance matrix)."
+        }
+      ]
+    },
+    "optimization_controls": {
+      "title": "⚙️ Các chức năng tối ưu",
+      "faqs": [
+        {
+          "questions": [
+            "Nút Tối ưu hóa dùng làm gì?",
+            "Làm sao để cập nhật danh mục tối ưu?"
+          ],
+          "keywords": ["tối ưu", "optimization", "nút"],
+          "answer": "Người dùng nhấn nút Tối ưu hóa để hệ thống tính toán lại tỷ trọng danh mục dựa trên dữ liệu mới và các tham số đã chọn.",
+          "notes": "Mỗi lần tối ưu cần lưu log: timestamp, tham số, model, kết quả."
+        },
+        {
+          "questions": [
+            "Có thể lưu kết quả tối ưu không?",
+            "Xuất báo cáo tối ưu được không?"
+          ],
+          "keywords": ["lưu kết quả", "export", "xuất báo cáo"],
+          "answer": "Kết quả tối ưu có thể xuất ra PDF hoặc lưu vào session để phục vụ cho báo cáo và phân tích sau.",
+          "notes": "Xuất báo cáo nên gồm bảng phân bổ (gốc và điều chỉnh), biểu đồ pie chart và performance metrics."
+        },
+        {
+          "questions": [
+            "Tổng vốn nhập vào dùng làm gì?",
+            "Nhập tổng vốn VNĐ hay USD?",
+            "Capital được tính ra sao?"
+          ],
+          "keywords": ["tổng vốn", "capital", "tỷ trọng", "allocation"],
+          "answer": "Người dùng nhập tổng vốn (VNĐ hoặc USD). Vốn phân bổ = tỷ trọng * tổng vốn. Capital điều chỉnh được tính từ tỷ trọng điều chỉnh theo rủi ro.",
+          "example": "Tổng vốn nhập 200 triệu, Weight=0.25 → Capital=50 triệu.",
+          "notes": "Nên cho phép chọn đơn vị tiền tệ (currency) để nhất quán giữa các tab."
+        }
+      ]
+    }
+  }
+}

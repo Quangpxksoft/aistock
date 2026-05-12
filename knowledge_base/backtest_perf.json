@@ -1,0 +1,228 @@
+{
+  "tab": "backtest_perf",
+  "title": "🔄 Backtest",
+  "sections": {
+    "backtest_summary": {
+      "title": "📊 Tóm tắt Backtest",
+      "faqs": [
+        {
+          "questions": [
+            "Backtest là gì?",
+            "Mục đích của backtest?",
+            "Backtest giúp gì cho quyết định đầu tư?"
+          ],
+          "keywords": ["backtest", "test", "historical"],
+          "answer": "Backtest là quá trình mô phỏng chiến lược đầu tư dựa trên dữ liệu lịch sử để đánh giá hiệu quả và rủi ro của chiến lược trước khi áp dụng thực tế.",
+          "user_definition": "Mô phỏng chiến lược với dữ liệu quá khứ để kiểm tra lợi nhuận, rủi ro, và tính ổn định của chiến lược dưới các điều kiện thị trường khác nhau.",
+          "notes": "Luôn kiểm soát độ trễ thông tin (look-ahead bias), phân chia dữ liệu hợp lý (train/validation/test), và xử lý slippage/commission khi mô phỏng để kết quả sát thực.",
+          "example": "Ví dụ: chạy chiến lược MA Crossover trên dữ liệu 3 năm, tính lợi nhuận tích lũy và max drawdown để đánh giá."
+        },
+        {
+          "questions": [
+            "Các chiến lược dùng trong backtest?",
+            "Hệ thống hỗ trợ chiến lược nào?"
+          ],
+          "keywords": ["chiến lược", "strategy", "backtest"],
+          "answer": "Hệ thống hỗ trợ nhiều chiến lược như Buy and Hold, Rebalance theo tỷ trọng mục tiêu, MA Crossover, Momentum, Bollinger, RSI, và các chiến lược tùy chỉnh dựa trên tín hiệu kỹ thuật hoặc tối ưu danh mục.",
+          "user_definition": "Danh sách chiến lược đã chuẩn hoá mà người dùng có thể chọn để backtest; mỗi chiến lược đi kèm tham số (ví dụ: short_ma=20, long_ma=50).",
+          "notes": "Các tham số chiến lược nên lưu lại để có thể tái hiện kết quả (reproducibility). Khi thêm chiến lược mới, cần định nghĩa rõ rule entry/exit, sizing, rebalancing frequency."
+        }
+      ]
+    },
+    "backtest_columns": {
+      "title": "📝 Ý nghĩa cột trong bảng backtest",
+      "faqs": [
+        {
+          "questions": ["Date là gì?", "Cột Date trong backtest?"],
+          "keywords": ["date", "ngày"],
+          "answer": "Ngày giao dịch hoặc ngày dữ liệu chứng khoán. Định dạng: dd/mm/yyyy.",
+          "user_definition": "Mốc thời gian (ngày) dùng để ghép dữ liệu giá, dự báo và đánh giá kết quả.",
+          "notes": "Chuẩn hoá timezone và định dạng ngày khi load từ nhiều nguồn (YYYY-MM-DD nội bộ, hiển thị dd/mm/yyyy)."
+        },
+        {
+          "questions": ["Close là gì?", "Giá thực tế là gì?"],
+          "keywords": ["close", "giá thực tế"],
+          "answer": "Giá đóng cửa thực tế của cổ phiếu trong ngày đó.",
+          "user_definition": "Giá khép phiên được dùng làm mốc so sánh và để tính lợi nhuận ngày tiếp theo: return_t = Close_t / Close_{t-1} - 1.",
+          "notes": "Kiểm tra dữ liệu thiếu (NaN), stock split, corporate actions; điều chỉnh giá nếu cần (adjusted close)."
+        },
+        {
+          "questions": ["Predicted_Close là gì?", "Giá dự báo là gì?"],
+          "keywords": ["predicted_close", "dự báo"],
+          "answer": "Giá đóng cửa được mô hình dự báo. Nếu chưa dự báo sẽ để trống.",
+          "user_definition": "Output của mô hình dự báo lưu vào bảng lịch sử dự báo để so sánh với giá thực tế khi sự kiện xảy ra.",
+          "notes": "Lưu thêm metadata: model_version, model_params, run_timestamp để truy xuất nguồn gốc (lineage)."
+        },
+        {
+          "questions": ["Sai số là gì?", "Cột Sai số trong backtest?"],
+          "keywords": ["sai số", "error"],
+          "formula": "Sai số = Predicted_Close - Close",
+          "answer": "Sai số = Predicted_Close - Close. Biểu thị độ chênh lệch tuyệt đối giữa giá dự báo và giá thực tế.",
+          "user_definition": "Chênh lệch (có dấu) giữa giá dự báo và giá thực tế; dấu dương nghĩa dự báo cao hơn thực tế, dấu âm nghĩa dự báo thấp hơn.",
+          "example": "Nếu Predicted_Close=105 và Close=100 → Sai số = 5.",
+          "notes": "Khi dùng sai số cho thống kê, thường lấy giá trị tuyệt đối (|error|) hoặc bình phương (squared error)."
+        },
+        {
+          "questions": ["Sai số % là gì?", "Cột Sai số phần trăm?"],
+          "keywords": ["sai số %", "error %"],
+          "formula": "Sai số % = |Predicted_Close - Close| / Close * 100",
+          "answer": "Sai số % = |Predicted_Close - Close| / Close * 100. Đo lường mức độ sai lệch dự báo theo phần trăm.",
+          "user_definition": "Tỷ lệ sai số so với giá thực tế, tiện so sánh giữa các cổ phiếu có giá khác nhau.",
+          "example": "Predicted=102, Close=100 → Sai số% = 2%.",
+          "notes": "Tránh chia cho 0: nếu Close==0, đánh dấu NaN hoặc áp quy tắc xử lý."
+        },
+        {
+          "questions": ["Portfolio_Value là gì?", "Giá trị danh mục?"],
+          "keywords": ["portfolio_value", "danh mục"],
+          "answer": "Giá trị tổng của danh mục đầu tư theo từng ngày, dựa trên giá đóng cửa các cổ phiếu trong danh mục.",
+          "user_definition": "Tổng (số lượng cổ phiếu held_i * Price_i) cho tất cả mã trong danh mục tại ngày t; có thể tính bằng tiền (VNĐ, USD...).",
+          "formula": "Portfolio_Value_t = Σ_i (Shares_{i,t} × Close_{i,t})",
+          "example": "Nếu hold 10 cổ FPT giá 70k và 5 cổ VCB giá 100k → Value = 10*70k + 5*100k = 1.2M.",
+          "notes": "Cần đồng nhất đơn vị và xử lý cổ phiếu chưa giao dịch (NaN)."
+        },
+        {
+          "questions": ["Ticker là gì?", "Cột Mã CK?"],
+          "keywords": ["ticker", "mã cổ phiếu"],
+          "answer": "Mã chứng khoán của cổ phiếu, ví dụ: AAPL, MSFT, FPT.VN.",
+          "user_definition": "Chuỗi định danh duy nhất cho cổ phiếu trong hệ thống; dùng để join các bảng giá, dự báo, vốn hoá.",
+          "notes": "Chuẩn hoá dạng mã (ví dụ thêm '.VN' cho thị trường Việt Nam nếu cần)."
+        },
+        {
+          "questions": ["Strategy là gì?", "Chiến lược đầu tư?"],
+          "keywords": ["strategy", "chiến lược"],
+          "answer": "Tên chiến lược được backtest, ví dụ: buy_and_hold, ma_crossover, momentum, bollinger, rsi.",
+          "user_definition": "Nhãn cho logic giao dịch dùng trong backtest; cần lưu tham số (params) để tái tạo kết quả.",
+          "notes": "Lưu strategy_params trong result để so sánh hiệu năng giữa các cấu hình."
+        }
+      ]
+    },
+    "performance_metrics": {
+      "title": "📊 Các chỉ số hiệu suất",
+      "faqs": [
+        {
+          "questions": ["MAE là gì?", "Mean Absolute Error?"],
+          "keywords": ["mae", "mean absolute error"],
+          "formula": "MAE = mean(|Predicted_Close - Close|)",
+          "answer": "Trung bình các giá trị tuyệt đối của sai số dự báo.",
+          "user_definition": "MAE cho biết sai số trung bình (đơn vị giá) giữa dự báo và thực tế; dễ hiểu vì ở cùng đơn vị với giá.",
+          "example": "Nếu errors = [1, -2, 3] → |errors| = [1,2,3] → MAE = 2.",
+          "notes": "Bỏ NA trước khi tính toán. Không nhạy với ngoại lệ so với RMSE."
+        },
+        {
+          "questions": ["RMSE là gì?", "Root Mean Square Error?"],
+          "keywords": ["rmse", "root mean square error"],
+          "formula": "RMSE = sqrt(mean((Predicted_Close - Close)^2))",
+          "answer": "Căn bậc hai của trung bình bình phương sai số, đo lường sai số dự báo lớn hơn các ngoại lệ.",
+          "user_definition": "RMSE phạt nặng các sai số lớn (outliers), nên phản ánh ảnh hưởng ngoại lệ tới hiệu năng.",
+          "example": "errors = [1, -2, 3] → squared = [1,4,9], mean=14/3 ~4.667 → RMSE~2.16.",
+          "notes": "Dùng khi muốn phạt sai số lớn; scale phụ thuộc đơn vị giá."
+        },
+        {
+          "questions": ["MAPE là gì?", "Mean Absolute Percentage Error?"],
+          "keywords": ["mape", "mean absolute percentage error"],
+          "formula": "MAPE = mean(|Predicted_Close - Close| / Close) * 100",
+          "answer": "Sai số dự báo theo phần trăm, trung bình trên tất cả các ngày.",
+          "user_definition": "MAPE thể hiện sai số tương đối; dễ so sánh giữa mã có giá khác nhau.",
+          "example": "Pred=110, Close=100 → APE=10%; tính trung bình các APE.",
+          "notes": "Nhạy cảm với Close gần 0; xử lý chia cho 0 bằng cách loại bỏ hoặc thay bằng small epsilon."
+        },
+        {
+          "questions": ["Sharpe Ratio là gì?"],
+          "keywords": ["sharpe", "ratio"],
+          "formula": "Sharpe Ratio = (mean(returns_annualized) - risk_free_rate) / std(returns_annualized)",
+          "answer": "Đo lường lợi nhuận bù rủi ro của danh mục.",
+          "user_definition": "Sharpe = (E[R] - R_f) / σ_R, thường annualized: E[R] = mean(daily_returns)*252, σ_R = std(daily_returns)*sqrt(252).",
+          "example": "Nếu annual return = 12%, risk_free=2%, annual std=15% → Sharpe=(0.12-0.02)/0.15=0.67.",
+          "notes": "Chú ý cách annualize và cách tính returns (log vs pct). Nếu std=0 -> Sharpe undefined."
+        },
+        {
+          "questions": ["Max Drawdown là gì?"],
+          "keywords": ["max drawdown", "rủi ro"],
+          "formula": "Max Drawdown = max_{t} [(peak_t - trough_t) / peak_t]  where peak_t = max_{s<=t} Portfolio_Value_s",
+          "answer": "Mức sụt giảm lớn nhất từ đỉnh danh mục xuống đáy, đo lường rủi ro tối đa.",
+          "user_definition": "MDD = min over time of (Portfolio_Value_t / running_max(Portfolio_Value) - 1).",
+          "example": "Sequence values: [100,120,90] → running_max=[100,120,120]; drawdowns=[0,0,-0.25] → MDD=25%.",
+          "notes": "Tính trên giá trị danh mục netto (after costs) để phản ánh thực tế."
+        }
+      ]
+    },
+    "risk_metrics": {
+      "title": "⚠️ Các chỉ số rủi ro",
+      "faqs": [
+        {
+          "questions": ["Volatility là gì?", "Biến động danh mục?"],
+          "keywords": ["volatility", "biến động"],
+          "formula": "Volatility = std(returns)  (daily)  → annualized = std(returns) * sqrt(252)",
+          "answer": "Độ lệch chuẩn lợi nhuận, đo mức độ biến động giá trị danh mục.",
+          "user_definition": "Std deviation of returns; higher → larger swings in returns and higher risk.",
+          "example": "Daily std=0.01 → annualized volatility ≈ 0.01 * sqrt(252) ≈ 0.158 (~15.8%).",
+          "notes": "Chọn window để tính volatility (rolling 30/60/252 ngày) tùy mục tiêu."
+        },
+        {
+          "questions": ["VaR là gì?", "Value at Risk là gì?"],
+          "keywords": ["var", "value at risk", "rủi ro"],
+          "formula": "VaR(α) = quantile(returns, 1 - α)  (historical). Parametric: μ + σ * z_{α}.",
+          "answer": "Mức tổn thất tối đa có thể xảy ra trong một khoảng thời gian với xác suất nhất định.",
+          "user_definition": "VaR 95% = loss level such that 95% of returns are better than that threshold. (Note: returns negative = loss).",
+          "example": "If VaR95 = -0.03 → 5% chance daily loss ≤ 3%.",
+          "notes": "Có 3 phương pháp: historical, parametric (normal), Monte-Carlo. Chú ý sign convention (losss negative)."
+        },
+        {
+          "questions": ["Conditional VaR là gì?", "CVaR là gì?"],
+          "keywords": ["cvar", "conditional var"],
+          "formula": "CVaR(α) = mean(returns[returns <= VaR(α)])",
+          "answer": "Trung bình tổn thất vượt quá mức VaR, đo lường rủi ro cực đoan.",
+          "user_definition": "Expected Shortfall: average loss given that loss exceeds VaR threshold.",
+          "example": "Nếu VaR95 = -3% và tail losses = [-4%, -6%, -10%] → CVaR95 = mean(tail) = -6.67%.",
+          "notes": "CVaR thường ổn định hơn VaR khi dữ liệu có heavy tails."
+        }
+      ]
+    },
+    "backtest_charts": {
+      "title": "📈 Biểu đồ backtest",
+      "faqs": [
+        {
+          "questions": [
+            "Kết quả backtest hiển thị thế nào?",
+            "Có biểu đồ hay chỉ số nào?",
+            "Có thể so sánh các chiến lược không?"
+          ],
+          "keywords": ["biểu đồ", "chart", "performance", "backtest"],
+          "answer": "Hiển thị giá trị danh mục theo thời gian, lợi nhuận tích lũy, các chỉ số hiệu suất, rủi ro, và so sánh các chiến lược khác nhau trên cùng một biểu đồ.",
+          "user_definition": "Các biểu đồ thường bao gồm: Portfolio Value (time series), Cumulative Returns, Drawdown Plot, Rolling Volatility, Strategy Comparison (multiple lines).",
+          "notes": "Kết hợp interactive charts (plotly) để bật/tắt chiến lược; thêm tooltips hiển thị giá trị tại thời điểm."
+        }
+      ]
+    },
+    "backtest_logic": {
+      "title": "🔧 Logic Backtest & Xử lý dữ liệu",
+      "faqs": [
+        {
+          "questions": [
+            "Các bước xử lý dữ liệu trước khi backtest?",
+            "Chuẩn hóa dữ liệu backtest?"
+          ],
+          "keywords": ["chuẩn hóa", "backtest", "dữ liệu"],
+          "answer": "1. Load dữ liệu lịch sử từ DB, chỉ lấy 180 ngày gần nhất. 2. Chuẩn hóa cột Date sang datetime, sắp xếp giảm dần. 3. Merge Predicted_Close từ forecast nếu có. 4. Tính Sai số, Sai số %, MAE, RMSE, MAPE. 5. Thực hiện backtest theo chiến lược đã chọn. 6. Tính performance và risk metrics. 7. Lọc ticker theo hiệu suất. 8. Lưu kết quả vào session_state. 9. Hiển thị bảng và biểu đồ. 10. Xuất báo cáo PDF tổng hợp.",
+          "user_definition": "Quy trình tiêu chuẩn để đảm bảo dữ liệu sạch và kết quả backtest có thể tái tạo.",
+          "detailed_steps": [
+            "Step 0: Define analysis window (e.g., last 180 trading days).",
+            "Step 1: Load raw OHLCV from DB, ensure 'Date' column is datetime and sorted ascending for time-series ops.",
+            "Step 2: Adjust prices for corporate actions if necessary (splits, dividends) or use adjusted close.",
+            "Step 3: Merge Predicted_Close by Date & Ticker (left join) and mark missing predictions.",
+            "Step 4: Handle missing data: forward-fill for features that allow it, otherwise drop rows or mark NaN depending on strategy.",
+            "Step 5: Compute daily returns: returns_t = Close_t / Close_{t-1} - 1 (or log returns if preferred).",
+            "Step 6: Calculate error metrics per day and aggregate (MAE, RMSE, MAPE).",
+            "Step 7: Simulate strategy logic per day: generate signals, execute trades, apply transaction costs & slippage, update positions and cash.",
+            "Step 8: Compute Portfolio_Value_t = Σ shares_i,t × Close_i,t and portfolio returns.",
+            "Step 9: Compute performance metrics (Sharpe, cumulative return) and risk metrics (Volatility, MDD, VaR, CVaR).",
+            "Step 10: Save time-series results and summary metrics into DB/session_state and generate visualizations (charts, tables).",
+            "Step 11: Export PDF report including summary, tables, charts, strategy parameters, and analysis notes."
+          ],
+          "notes": "Xử lý chuẩn này đảm bảo không bias, dữ liệu đồng bộ giữa các tab, và kết quả có thể so sánh công bằng."
+        }
+      ]
+    }
+  }
+}
+

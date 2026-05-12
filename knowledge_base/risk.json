@@ -1,0 +1,132 @@
+{
+  "tab": "risk",
+  "title": "📉 Phân tích rủi ro",
+  "sections": {
+    "risk_metrics": {
+      "title": "📊 Các chỉ số rủi ro",
+      "columns": [
+        {
+          "name": "Metric",
+          "description": "Tên chỉ số rủi ro (Sharpe, Sortino, Max Drawdown, Volatility, VaR, CVaR...).",
+          "type": "string",
+          "user_definition": "Tên chỉ số giúp người dùng nhận diện loại rủi ro được đo lường."
+        },
+        {
+          "name": "Value",
+          "description": "Giá trị của chỉ số rủi ro tương ứng.",
+          "type": "float",
+          "formula": {
+            "Sharpe": "Sharpe Ratio = (Mean_Return - Risk_Free_Rate) / Std_Dev_Return",
+            "Sortino": "Sortino Ratio = (Mean_Return - Risk_Free_Rate) / Downside_Std_Dev",
+            "Volatility": "Volatility = Std_Dev(Returns) * sqrt(252) // annualized",
+            "Max_Drawdown": "MDD = (Peak_Value - Trough_Value) / Peak_Value",
+            "VaR_95": "VaR(95%) = Percentile(Returns, 5%)",
+            "CVaR_95": "CVaR(95%) = Mean(Returns[Returns <= VaR_95])"
+          },
+          "user_definition": "Người dùng nhìn vào giá trị này để đánh giá mức rủi ro thực tế, so sánh giữa các mã hoặc danh mục."
+        }
+      ],
+      "faqs": [
+        {
+          "questions": [
+            "Phân tích rủi ro theo mã là gì?",
+            "Tab Phân tích rủi ro dùng để làm gì?",
+            "Tại sao phải phân tích rủi ro?",
+            "Kết quả phân tích rủi ro hiển thị ra sao?"
+          ],
+          "keywords": ["phân tích rủi ro", "risk", "risk analysis"],
+          "answer": "Phân tích rủi ro giúp đánh giá mức độ biến động và rủi ro tài chính của từng mã cổ phiếu. Kết quả hiển thị dưới dạng biểu đồ cột và bảng dữ liệu các chỉ số rủi ro. Điều này hỗ trợ nhà đầu tư cân nhắc giữa lợi nhuận kỳ vọng và rủi ro tiềm ẩn."
+        },
+        {
+          "questions": [
+            "Sharpe Ratio là gì?",
+            "Ý nghĩa của chỉ số Sharpe?",
+            "Sharpe cao là tốt hay xấu?"
+          ],
+          "keywords": ["sharpe", "sharpe ratio"],
+          "formula": "Sharpe Ratio = (Mean_Return - Risk_Free_Rate) / Std_Dev_Return",
+          "user_definition": "Chỉ số đo lường lợi nhuận vượt trội so với tài sản phi rủi ro trên mỗi đơn vị biến động.",
+          "answer": "Sharpe Ratio càng cao → danh mục càng hiệu quả so với rủi ro đã bỏ ra. Sharpe < 1: kém, 1–2: chấp nhận được, >2: rất tốt."
+        },
+        {
+          "questions": [
+            "Sortino Ratio khác Sharpe thế nào?",
+            "Sortino Ratio là gì?",
+            "Ý nghĩa Sortino?"
+          ],
+          "keywords": ["sortino", "sortino ratio"],
+          "formula": "Sortino Ratio = (Mean_Return - Risk_Free_Rate) / Downside_Std_Dev",
+          "user_definition": "Chỉ số giống Sharpe nhưng chỉ xem xét rủi ro từ các biến động âm.",
+          "answer": "Sortino Ratio tập trung vào rủi ro thua lỗ thực sự thay vì toàn bộ biến động. Sortino càng cao, chiến lược càng ưu việt vì tối ưu hóa lợi nhuận so với rủi ro mất vốn."
+        },
+        {
+          "questions": [
+            "Max Drawdown là gì?",
+            "Ý nghĩa của MDD?",
+            "Mức sụt giảm tối đa cho biết điều gì?"
+          ],
+          "keywords": ["mdd", "max drawdown", "sụt giảm tối đa"],
+          "formula": "MDD = (Đỉnh cao nhất - Đáy thấp nhất) / Đỉnh cao nhất",
+          "user_definition": "Chỉ số phản ánh mức thua lỗ tối đa có thể xảy ra nếu mua tại đỉnh và bán tại đáy.",
+          "answer": "Max Drawdown càng lớn → danh mục càng dễ rủi ro trong thời kỳ biến động mạnh."
+        },
+        {
+          "questions": [
+            "Volatility là gì?",
+            "Biến động được tính thế nào?",
+            "Độ lệch chuẩn trong rủi ro có ý nghĩa gì?"
+          ],
+          "keywords": ["volatility", "biến động", "độ lệch chuẩn"],
+          "formula": "Volatility = Std_Dev(Returns) * sqrt(252)",
+          "user_definition": "Đo lường mức độ biến động giá trị danh mục (annualized).",
+          "answer": "Volatility cao → lợi nhuận có thể dao động mạnh, tức rủi ro cao. Nhà đầu tư thận trọng thường chọn danh mục có volatility thấp."
+        },
+        {
+          "questions": [
+            "VaR là gì?",
+            "Value at Risk nghĩa là gì?",
+            "Ý nghĩa của chỉ số VaR?"
+          ],
+          "keywords": ["var", "value at risk"],
+          "formula": "VaR(95%) = Percentile(Returns, 5%)",
+          "user_definition": "VaR cho biết tổn thất tối đa trong kịch bản xấu với xác suất (ví dụ 5%).",
+          "answer": "Nếu VaR 95% = -2%, có nghĩa trong 95% trường hợp, thua lỗ 1 ngày không vượt quá 2%."
+        },
+        {
+          "questions": [
+            "CVaR là gì?",
+            "Conditional VaR nghĩa là gì?",
+            "CVaR khác gì VaR?"
+          ],
+          "keywords": ["cvar", "conditional var"],
+          "formula": "CVaR(95%) = Mean(Returns[Returns <= VaR_95])",
+          "user_definition": "Đo mức lỗ trung bình khi danh mục rơi vào 5% trường hợp tồi tệ nhất.",
+          "answer": "CVaR cung cấp bức tranh rõ hơn về tail risk (rủi ro cực đoan). Nếu CVaR thấp hơn nhiều so với VaR → danh mục dễ chịu rủi ro lớn khi có sự kiện bất thường."
+        }
+      ]
+    },
+    "functions": {
+      "title": "⚙️ Chức năng trong tab Rủi ro",
+      "faqs": [
+        {
+          "questions": [
+            "Nút Tính lại Risk Metrics dùng làm gì?",
+            "Tại sao cần tính lại chỉ số rủi ro?",
+            "Có thể cập nhật dữ liệu rủi ro không?"
+          ],
+          "keywords": ["tính lại", "rerun", "risk metrics"],
+          "answer": "Nút 🔍 **Tính lại Risk Metrics** sẽ xoá kết quả cũ và tính toán lại các chỉ số rủi ro dựa trên dữ liệu cập nhật. Điều này giúp nhà đầu tư có thông tin mới nhất để ra quyết định."
+        },
+        {
+          "questions": [
+            "Có xuất được báo cáo rủi ro không?",
+            "Báo cáo phân tích rủi ro gồm gì?",
+            "Làm sao tải về báo cáo risk?"
+          ],
+          "keywords": ["xuất báo cáo", "báo cáo rủi ro", "export risk"],
+          "answer": "Có. Người dùng có thể xuất **báo cáo PDF** bao gồm: Sharpe, Sortino, Volatility, Max Drawdown, VaR, CVaR, kèm biểu đồ minh hoạ. Đây là tài liệu tham khảo hữu ích cho phân tích và thuyết trình đầu tư."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "tab": "rebalance",
+  "title": "🔄 Tái cân bằng danh mục",
+  "sections": {
+    "current_portfolio": {
+      "title": "💼 Danh mục hiện tại",
+      "faqs": [
+        {
+          "questions": [
+            "Danh mục hiện tại hiển thị gì?",
+            "Tỷ trọng hiện tại là gì?",
+            "Cần nhập số lượng cổ phiếu để làm gì?"
+          ],
+          "keywords": ["danh mục", "tỷ trọng", "số lượng"],
+          "answer": "Danh mục hiện tại hiển thị số lượng và giá trị từng mã cổ phiếu. Tỷ trọng hiện tại được tính bằng công thức: \n\nTỷ trọng hiện tại (%) = (Giá hiện tại × Số lượng nắm giữ) / Tổng giá trị danh mục × 100\n\nNgười dùng cần nhập số lượng cổ phiếu đang nắm giữ để hệ thống tính toán chính xác tỷ trọng hiện tại và lập kế hoạch tái cân bằng.",
+          "formula": "Weight_i = (Price_i × Qty_i) / Σ (Price_j × Qty_j)",
+          "example": "Giả sử nắm giữ: FPT 100 cp giá 90k, VNM 50 cp giá 70k. → Value FPT=9tr, VNM=3.5tr → Tổng=12.5tr. → Weight FPT=72%, VNM=28%.",
+          "notes": "Nếu không nhập số lượng → hệ thống chỉ hiển thị tỷ trọng gợi ý, không lập được kế hoạch chi tiết."
+        },
+        {
+          "questions": [
+            "Tổng giá trị danh mục là gì?",
+            "Tổng giá trị danh mục được tính thế nào?"
+          ],
+          "keywords": ["tổng giá trị", "total value"],
+          "answer": "Tổng giá trị danh mục = Σ (Giá cổ phiếu × Số lượng cổ phiếu nắm giữ) cho tất cả các mã trong danh mục.",
+          "formula": "Portfolio_Value = Σ (Price_i × Qty_i)",
+          "example": "FPT: 100×90k=9tr, VNM: 50×70k=3.5tr → Tổng=12.5tr.",
+          "notes": "Đây là cơ sở để tính cả tỷ trọng hiện tại và tỷ trọng mục tiêu."
+        }
+      ]
+    },
+    "rebalance_plan": {
+      "title": "📋 Kế hoạch tái cân bằng",
+      "faqs": [
+        {
+          "questions": [
+            "Tái cân bằng là gì?",
+            "Hệ thống gợi ý tỷ trọng mục tiêu thế nào?",
+            "Làm sao biết nên mua/bán cổ phiếu nào?"
+          ],
+          "keywords": ["tái cân bằng", "gợi ý", "mua bán", "tỷ trọng mục tiêu"],
+          "answer": "Tái cân bằng là quá trình điều chỉnh danh mục để đạt tỷ trọng mục tiêu cho mỗi mã cổ phiếu.\n\nHệ thống gợi ý tỷ trọng mục tiêu dựa trên:\n1. Hiệu suất quá khứ 1 tháng: \n   Tỷ trọng gợi ý (%) = Lợi nhuận dương từng mã / Tổng lợi nhuận dương của danh mục × 100\n2. Hoặc tỷ trọng mục tiêu do người dùng nhập.\n\nHành động mua/bán được xác định bằng:\nChênh lệch số lượng = Số lượng mục tiêu - Số lượng hiện tại\n- Nếu > 0 → Mua thêm\n- Nếu < 0 → Bán bớt\n- Nếu = 0 → Giữ",
+          "formula": "TargetWeight_i = max(0, Return_1M_i) / Σ max(0, Return_1M_j). \nTargetQty_i = (TargetWeight_i × Portfolio_Value) / Price_i. \nDeltaQty_i = TargetQty_i - CurrentQty_i.",
+          "example": "Nếu FPT có return 5%, VNM return 2% → tỷ trọng gợi ý FPT=71%, VNM=29%. Nếu danh mục hiện tại khác, hệ thống sẽ tính số lượng cần mua/bán.",
+          "notes": "Có thể thêm tùy chọn rebalance theo kỳ hạn (quý, 6 tháng, 1 năm) hoặc theo ngưỡng lệch trọng số (ví dụ ±5%)."
+        },
+        {
+          "questions": [
+            "Các cột trong bảng kế hoạch tái cân bằng có ý nghĩa gì?",
+            "Giá hiện tại, SL hiện tại, Tỷ trọng hiện tại/mục tiêu nghĩa là gì?",
+            "Hành động được xác định ra sao?"
+          ],
+          "keywords": ["bảng tái cân bằng", "cột", "ý nghĩa"],
+          "answer": "Các cột trong bảng kế hoạch tái cân bằng:\n- **Ticker**: Mã cổ phiếu\n- **Giá hiện tại**: Giá đóng cửa gần nhất của cổ phiếu\n- **SL hiện tại**: Số lượng cổ phiếu đang nắm giữ\n- **Tỷ trọng hiện tại**: (Giá × SL hiện tại) / Tổng giá trị danh mục\n- **Tỷ trọng mục tiêu**: Tỷ trọng mong muốn sau tái cân bằng (gợi ý hoặc nhập thủ công)\n- **Chênh lệch SL**: Số lượng cần mua/bán = SL mục tiêu - SL hiện tại\n- **Hành động**: Dựa trên Chênh lệch SL → 'Mua thêm', 'Bán bớt' hoặc 'Giữ'",
+          "example": "Nếu SL hiện tại=100 cp, SL mục tiêu=120 cp → Chênh lệch=+20 → Hành động=Mua thêm.",
+          "notes": "Nên hiển thị thêm giá trị tiền tương ứng với hành động để tiện đặt lệnh thực tế."
+        },
+        {
+          "questions": [
+            "Có xuất báo cáo tái cân bằng không?",
+            "Báo cáo PDF gồm những gì?"
+          ],
+          "keywords": ["xuất báo cáo", "PDF", "rebalance report"],
+          "answer": "Người dùng có thể xuất báo cáo PDF chứa đầy đủ:\n- Tỷ trọng hiện tại\n- Tỷ trọng mục tiêu (quá khứ/chiến lược)\n- Chênh lệch số lượng\n- Hành động mua/bán\n\nBáo cáo còn hiển thị biểu đồ tròn so sánh tỷ trọng hiện tại và tỷ trọng mục tiêu.",
+          "notes": "Báo cáo có thể thêm bảng chi tiết: giá trị tiền mua/bán, chi phí giao dịch, lợi nhuận kỳ vọng sau rebalance."
+        },
+        {
+          "questions": [
+            "Làm sao hệ thống tính tỷ trọng mục tiêu?",
+            "Công thức tính tỷ trọng mục tiêu?"
+          ],
+          "keywords": ["tỷ trọng mục tiêu", "công thức"],
+          "answer": "Công thức tính:\n- Dựa trên hiệu suất 1 tháng: \n  Tỷ trọng gợi ý (%) = max(0, Lợi nhuận 1 tháng) / Σ max(0, Lợi nhuận 1 tháng) × 100\n- Tỷ trọng mục tiêu do người dùng nhập: theo giá trị mong muốn, tổng tất cả các tỷ trọng ≈ 1.0\n\nSau đó tính số lượng cổ phiếu cần mua/bán để đạt tỷ trọng mục tiêu:\nSL mục tiêu = Tỷ trọng mục tiêu × Tổng giá trị danh mục / Giá hiện tại\nChênh lệch SL = SL mục tiêu - SL hiện tại",
+          "example": "Danh mục 100tr, target weight=20% cho FPT, giá FPT=100k → SL mục tiêu=200 cp. Nếu hiện đang giữ 150 cp → Cần mua thêm 50 cp.",
+          "notes": "Có thể thêm cơ chế điều chỉnh theo chi phí giao dịch và thuế → tránh tái cân bằng quá nhỏ gây tốn phí."
+        }
+      ]
+    },
+    "charts": {
+      "title": "📊 Biểu đồ tái cân bằng",
+      "faqs": [
+        {
+          "questions": [
+            "Biểu đồ trước/sau tái cân bằng là gì?",
+            "Có thể xem tỷ trọng trước và sau tái cân bằng?"
+          ],
+          "keywords": ["biểu đồ", "tỷ trọng", "trước sau"],
+          "answer": "Hệ thống hiển thị 2 biểu đồ tròn:\n- **Trước khi tái cân bằng**: tỷ trọng hiện tại dựa trên giá trị thị trường.\n- **Sau khi tái cân bằng**: tỷ trọng mục tiêu mà người dùng muốn đạt được.\nMục đích giúp trực quan hóa sự điều chỉnh danh mục.",
+          "example": "Trước rebalance: FPT=60%, VNM=40%. Sau rebalance: FPT=50%, VNM=50%.",
+          "notes": "Có thể dùng Pie chart hoặc Bar chart để hiển thị. Nếu nhiều mã cổ phiếu thì nên cho phép lọc nhóm ngành để dễ xem."
+        }
+      ]
+    }
+  }
+}

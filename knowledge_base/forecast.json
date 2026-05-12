@@ -1,0 +1,177 @@
+{
+  "tab": "forecast",
+  "title": "📊 Dự báo",
+  "sections": {
+    "detailed_forecast": {
+      "title": "📈 Dự báo chi tiết",
+      "description": "Hiển thị dự báo giá cổ phiếu theo ngày. Hỗ trợ nhiều mô hình: LSTM (mạng nơ-ron tuần tự), TCN (mạng nơ-ron tích chập thời gian).",
+      "columns": [
+        {
+          "name": "Date",
+          "description": "Ngày dự báo (định dạng dd/mm/yyyy). Đây là mốc thời gian dự báo.",
+          "type": "datetime"
+        },
+        {
+          "name": "Close",
+          "description": "Giá đóng cửa thực tế hoặc gần nhất của mã cổ phiếu, dùng làm mốc so sánh với giá dự báo.",
+          "type": "float",
+          "formula": "Close = Giá khớp lệnh cuối cùng trong phiên"
+        },
+        {
+          "name": "Predicted_Close",
+          "description": "Giá đóng cửa dự báo từ mô hình đã huấn luyện.",
+          "type": "float",
+          "formula": {
+            "LSTM": "Predicted_Close = model.predict(window_last_60_days)",
+            "TCN": "Predicted_Close = model.predict(conv_time_series)"
+          }
+        }
+      ],
+      "faqs": [
+        {
+          "questions": ["Mô hình dự báo có những loại nào?", "LSTM và TCN khác nhau thế nào?", "Dùng model nào để dự báo tốt nhất?"],
+          "keywords": ["LSTM", "TCN", "mô hình dự báo"],
+          "answer": "Hệ thống hỗ trợ 2 mô hình: (1) **LSTM**: học phụ thuộc dài hạn, cần dữ liệu ≥60 dòng; (2) **TCN**: mạng tích chập thời gian, mạnh với chuỗi dài và quan hệ phức tạp. Việc chọn mô hình phụ thuộc vào đặc điểm dữ liệu."
+        },
+        {
+          "questions": ["Nếu thiếu dữ liệu thì làm sao?", "Cần bao nhiêu dữ liệu cho LSTM hay TCN?"],
+          "keywords": ["thiếu dữ liệu", "ít dữ liệu"],
+          "answer": "Cả LSTM và TCN đều cần ≥60 phiên để tạo đầu vào. Nếu dữ liệu ít hơn, mô hình sẽ không thể huấn luyện chính xác."
+        },
+        {
+          "questions": ["Kết quả dự báo hiển thị thế nào?", "Có biểu đồ không?"],
+          "keywords": ["dự báo", "biểu đồ", "giá trị dự báo"],
+          "answer": "Kết quả gồm bảng dữ liệu dự báo và biểu đồ đường, cho phép so sánh giá dự báo với giá thực tế."
+        }
+      ]
+    },
+    "portfolio_detailed_forecast": {
+      "title": "📈 Dự báo chi tiết danh mục",
+      "description": "Phân tích chi tiết cho từng mã trong danh mục với biểu đồ giá Plotly, bảng dự báo (Việt hóa, định dạng), và biểu đồ xu hướng giá & SMA.",
+      "sections": [
+        {
+          "name": "Biểu đồ dự báo giá",
+          "description": "Hiển thị đường giá đóng cửa dự báo theo thời gian, kèm điểm đánh dấu giá hiện tại (nếu có)."
+        },
+        {
+          "name": "Bảng dự báo",
+          "description": "Bảng dữ liệu dự báo đã Việt hóa và định dạng, gồm Ngày, Giá mở cửa, Giá cao nhất, Giá thấp nhất, Giá đóng cửa, Khối lượng."
+        },
+        {
+          "name": "Biểu đồ xu hướng & SMA",
+          "description": "Vẽ xu hướng giá đóng cửa dự báo kèm đường SMA (trung bình động) theo số ngày được chọn."
+        }
+      ]
+    },
+    "descriptive_stats": {
+      "title": "📊 Thống kê mô tả",
+      "description": "Thống kê cơ bản các chỉ số dự báo để hiểu rõ hơn về phân phối giá trị dự báo.",
+      "columns": [
+        {"name": "count", "description": "Số quan sát dự báo: count = số lượng dòng dữ liệu dự báo."},
+        {"name": "mean", "description": "Trung bình giá dự báo: mean = Σ(Predicted_Close) / count."},
+        {"name": "std", "description": "Độ lệch chuẩn, đo mức độ phân tán: std = sqrt(Σ(Predicted_Close - mean)² / (count-1))."},
+        {"name": "min", "description": "Giá dự báo nhỏ nhất trong tập."},
+        {"name": "25%", "description": "Phân vị 25% (Q1): 25% giá trị nhỏ hơn hoặc bằng ngưỡng này."},
+        {"name": "50%", "description": "Phân vị 50% (median): giá trị trung vị."},
+        {"name": "75%", "description": "Phân vị 75% (Q3): 75% giá trị nhỏ hơn hoặc bằng ngưỡng này."},
+        {"name": "max", "description": "Giá dự báo lớn nhất trong tập."}
+      ],
+      "faqs": [
+        {
+          "questions": ["Ý nghĩa mean, std, min, max?", "Các chỉ số 25%, 50%, 75% nghĩa là gì?"],
+          "keywords": ["thống kê mô tả", "mean", "std", "min", "max", "percentile"],
+          "answer": "**mean**: trung bình dự báo; **std**: biến động; **min/max**: biên dưới và trên; **25%/50%/75%**: các phân vị (quartiles) giúp nhận diện phân phối dữ liệu và xu hướng biến động."
+        }
+      ]
+    },
+    "descriptive_stats_by_ticker": {
+      "title": "📊 Thống kê mô tả theo mã",
+      "description": "Phân tích thống kê cơ bản cho từng mã cổ phiếu dự báo, gắn nhãn các mốc min, max, mean, phân vị vào dữ liệu, và vẽ biểu đồ biến động giá & khối lượng.",
+      "columns": [
+        {"name": "Ngày dự báo", "description": "Ngày dự báo (dd/mm/yyyy)."},
+        {"name": "Giá dự báo", "description": "Giá đóng cửa dự báo."},
+        {"name": "Thống kê giá", "description": "Nhãn thống kê (min, max, mean, std, count, 25%, 50%, 75%)."},
+        {"name": "Khối lượng dự báo", "description": "Khối lượng dự báo."},
+        {"name": "Thống kê khối lượng", "description": "Nhãn thống kê tương ứng cho khối lượng."}
+      ]
+    },
+    "portfolio_table": {
+      "title": "🧾 Bảng dữ liệu danh mục",
+      "description": "Tổng hợp dự báo giá cho từng mã trong danh mục, kèm chỉ báo SMA để nhận diện xu hướng ngắn hạn.",
+      "columns": [
+        {"name": "Ngày dự báo", "description": "Ngày dự báo (dd/mm/yyyy)."},
+        {"name": "Giá dự báo", "description": "Giá đóng cửa dự báo của từng mã cổ phiếu."},
+        {"name": "SMA_5", "description": "Simple Moving Average 5 kỳ: SMA_5 = trung bình giá dự báo 5 ngày gần nhất."}
+      ],
+      "faqs": [
+        {
+          "questions": ["Bảng danh mục hiển thị gì?", "Có thể xem giá theo ngày ở đâu?"],
+          "keywords": ["danh mục", "giá dự báo", "SMA"],
+          "answer": "Bảng hiển thị giá dự báo của từng mã theo ngày, kèm SMA_5 để quan sát xu hướng ngắn hạn."
+        }
+      ]
+    },
+    "market_index": {
+      "title": "🌍 Chỉ số thị trường",
+      "description": "Theo dõi chỉ số thị trường chung, thể hiện xu hướng tăng/giảm/ổn định.",
+      "columns": [
+        {"name": "Date", "description": "Ngày giao dịch."},
+        {"name": "Close", "description": "Giá đóng cửa chỉ số (ví dụ VN-Index)."},
+        {"name": "PrevClose", "description": "Giá đóng cửa phiên trước: PrevClose = Close.shift(1)."},
+        {"name": "Change", "description": "Biến động: Change = Close - PrevClose."},
+        {"name": "Trend", "description": "Xu hướng: ⬆️ tăng nếu Close > PrevClose, ⬇️ giảm nếu Close < PrevClose, ➖ ổn định nếu gần như bằng nhau."}
+      ],
+      "faqs": [
+        {
+          "questions": ["Chỉ số thị trường hiển thị thế nào?", "Có biểu đồ không?"],
+          "keywords": ["chỉ số thị trường", "biến động", "trend"],
+          "answer": "Chỉ số được hiển thị dưới dạng bảng và biểu đồ đường để quan sát biến động và xu hướng."
+        }
+      ]
+    },
+    "real_trades": {
+      "title": "💹 Giao dịch thực tế",
+      "description": "Hiển thị dữ liệu thực tế (giá đóng cửa, biến động, xu hướng, SMA) để so sánh với dự báo.",
+      "columns": [
+        {"name": "Ngày", "description": "Ngày giao dịch (dd/mm/yyyy)."},
+        {"name": "Giá đóng cửa", "description": "Giá thực tế tại phiên giao dịch."},
+        {"name": "Mức thay đổi", "description": "Thay đổi so với phiên trước: Δ = Close - PrevClose."},
+        {"name": "Xu hướng", "description": "🔺 tăng nếu Δ > 0, 🔻 giảm nếu Δ < 0, ⏸ ổn định nếu Δ ≈ 0."},
+        {"name": "SMA_5", "description": "Trung bình trượt 5 phiên: SMA_5 = Σ(Giá đóng cửa 5 phiên gần nhất)/5."}
+      ],
+      "faqs": [
+        {
+          "questions": ["Dữ liệu giao dịch thực tế khác gì dự báo?", "Khớp lệnh thực tế hiển thị thế nào?"],
+          "keywords": ["khớp lệnh", "thực tế", "giá đóng cửa"],
+          "answer": "Dữ liệu thực tế phản ánh thị trường thật, trong khi dữ liệu dự báo là giá trị ước tính. So sánh hai tập giúp đánh giá độ chính xác mô hình."
+        }
+      ]
+    },
+    "forecast_performance": {
+      "title": "📊 Hiệu suất dự báo",
+      "description": "Đo lường độ chính xác dự báo bằng các chỉ số sai số phổ biến.",
+      "columns": [
+        {"name": "MAE", "description": "Mean Absolute Error: MAE = Σ|Predicted_Close - Close| / n. Sai số tuyệt đối trung bình."},
+        {"name": "RMSE", "description": "Root Mean Square Error: RMSE = sqrt(Σ(Predicted_Close - Close)² / n). Nhấn mạnh sai số lớn."},
+        {"name": "MAPE", "description": "Mean Absolute Percentage Error: MAPE = (Σ(|Predicted_Close - Close| / Close) / n) × 100%. Sai số phần trăm trung bình."}
+      ],
+      "faqs": [
+        {
+          "questions": ["Dự báo có chính xác không?", "Làm sao đánh giá hiệu suất dự báo?"],
+          "keywords": ["MAE", "RMSE", "MAPE"],
+          "answer": "MAE cho biết sai số trung bình, RMSE nhấn mạnh sai số lớn, MAPE cho thấy sai số theo tỷ lệ %. Ba chỉ số này kết hợp phản ánh mức độ chính xác của mô hình dự báo."
+        }
+      ]
+    },
+    "investor_behavior": {
+      "title": "👥 Hành vi nhà đầu tư",
+      "description": "Phân tích hành vi và xu hướng giao dịch của nhà đầu tư dựa trên dữ liệu dự báo và giao dịch thực tế.",
+      "columns": [
+        {"name": "Nhà đầu tư", "description": "Tên hoặc mã nhà đầu tư."},
+        {"name": "Mã CK", "description": "Mã chứng khoán được giao dịch."},
+        {"name": "Hành vi", "description": "Loại hành vi (mua, bán, nắm giữ)."},
+        {"name": "Khối lượng", "description": "Khối lượng giao dịch."}
+      ]
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+    "tab": "report",
+    "title": "📄 Báo cáo tổng hợp",
+    "sections": {
+        "report_summary": {
+            "title": "📊 Tổng quan báo cáo",
+            "faqs": [
+                {
+                    "questions": [
+                        "Báo cáo tổng hợp gồm những gì?",
+                        "Có thể xuất PDF không?",
+                        "Báo cáo dùng để làm gì?"
+                    ],
+                    "keywords": ["báo cáo", "report", "PDF", "tổng hợp"],
+                    "answer": "Báo cáo tổng hợp hiển thị đầy đủ thông tin về danh mục: dự báo, backtest, rủi ro, tối ưu và tái cân bằng. Người dùng có thể xuất PDF để lưu hoặc gửi email cho nhóm đầu tư."
+                }
+            ]
+        },
+        "report_functions": {
+            "title": "⚙️ Chức năng báo cáo",
+            "faqs": [
+                {
+                    "questions": [
+                        "Làm sao chọn nội dung xuất báo cáo?",
+                        "Có thể gửi email trực tiếp không?",
+                        "Chọn mã cổ phiếu nào để xuất báo cáo?"
+                    ],
+                    "keywords": ["xuất báo cáo", "send email", "report", "ticker"],
+                    "answer": "Người dùng chọn nội dung báo cáo cần xuất (dự báo, backtest, rủi ro, tối ưu, tái cân bằng), chọn mã cổ phiếu, và có thể gửi trực tiếp qua email từ tab Báo cáo."
+                }
+            ]
+        }
+    }
+}
