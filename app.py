@@ -120,7 +120,12 @@ MEM_SAFE_MODE = True   # Hoặc False, tùy nhu cầu
 BATCH_SIZE = 50        # Số lượng mỗi batch, tùy nhu cầu xử lý
 
 # ========= Streamlit setup ==================================================
-st.set_page_config(page_title="AIS phân tích đầu tư chứng khoán", layout="wide")
+# st.set_page_config(page_title="AIS phân tích đầu tư chứng khoán", layout="wide")
+st.set_page_config(
+    page_title="AIS phân tích đầu tư chứng khoán",
+    page_icon="assets/logo.png",
+    layout="wide"
+)
 
 # st.title("📈 Hệ thống đầu tư AIS‑Ksoft")
 # ========= Thư mục ==========================================================
