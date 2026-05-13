@@ -361,21 +361,6 @@ def page_home():
     st.write(f"Xin chào **{user['full_name']}**!")
     st.write(f"Bạn đang đăng nhập với quyền: `{user['role']}`")
     
-    # ===== Chỉ admin mới thấy nút =====
-    # if user.get("role") == "admin":
-    #     #col1, col2 = st.columns([9, 1])  # dồn nút sang phải
-    #     #with col2:
-    #     if st.button("Pending"):
-    #         st.session_state["page"] = "admin_activate"
-    #         st.rerun()
-    # ==================================
-    # if st.button("Đăng xuất", key="btn_logout"):
-    #     st.session_state["user"] = None
-    #     st.session_state["enter_home"] = False
-    #     st.session_state["page"] = "login"
-    #     st.rerun()
-
-    
     # # ===========st.subheader("📌 Các chức năng của bạn:")=============
 
     # # Nút tải dữ liệu danh mục
@@ -642,16 +627,6 @@ def page_home():
 
                 # ====================DỰ BÁO=================================
                 with sub_tabs[0]:
-                    # model_choice = st.selectbox(
-                    #     "Mô hình dự báo",
-                    #     ["LSTM", "Prophet", "ARIMA"],
-                    #     key="forecast_model_select",
-                    #     help=(
-                    #         "• LSTM – Mạng nơ-ron hồi quy cho chuỗi thời gian, có thể dự báo nhiều thông số (Giá mở cửa, Cao nhất, Thấp nhất, Đóng cửa, Khối lượng).\n"
-                    #         "• Prophet – Mô hình của Meta, mạnh về seasonality, nhưng CHỈ dự báo Giá đóng cửa (không có Giá mở cửa, Cao nhất, Thấp nhất, Khối lượng).\n"
-                    #         "• ARIMA – Mô hình thống kê cổ điển, cũng CHỈ dự báo Giá đóng cửa."
-                    #     )
-                    # )
                     
                     model_choice = st.selectbox(
                         "Mô hình dự báo",
@@ -662,7 +637,6 @@ def page_home():
                             "• TCN – (Temporal Convolutional Network) là một mô hình học sâu cho chuỗi thời gian, phù hợp với dự báo OHLCV, dựa trên Convolutional Neural Network (CNN) nhưng được thiết kế đặc biệt để xử lý dữ liệu tuần tự, mạnh với chuỗi dài và quan hệ phức tạp."
                         )
                     )
-
 
                     forecast_days = st.slider("Số ngày dự báo", 1, 30, 7, key="forecast_days_slider")
                     use_saved = st.checkbox("Dùng mô hình đã huấn luyện", value=False, key="forecast_use_saved")
@@ -724,39 +698,6 @@ def page_home():
 
                                 return fc[["Date"] + predicted_cols], predicted_cols
                             
-                            # elif choice == "Prophet":
-                            #     # from utils.prophet_model import load_prophet_model, train_prophet, forecast_prophet
-                            #     ticker = mdl_name.replace("prophet_", "")
-
-                            #     if use_saved_model:
-                            #         model = load_prophet_model(ticker)
-                            #         if model is None:
-                            #             return None, "ModelNotTrained"
-                            #     else:
-                            #         model = train_prophet(df, ticker)
-
-                            #     fc = forecast_prophet(model, n_days)
-                            #     fc = fc.rename(columns={"ds": "Date", "yhat": "Predicted_Close"})
-
-                            #     return fc[["Date", "Predicted_Close"]], "Predicted_Close"
-
-
-                            # elif choice == "ARIMA":
-                            #     # from utils.arima_model import load_arima_model, train_arima, forecast_arima
-                            #     ticker = mdl_name.replace("arima_", "")
-
-                            #     if use_saved_model:
-                            #         model = load_arima_model(ticker)
-                            #         if model is None:
-                            #             return None, "ModelNotTrained"
-                            #     else:
-                            #         model = train_arima(df, ticker)
-
-                            #     fc = forecast_arima(df, n_days, use_saved_model=True, ticker=ticker)
-                            #     fc = fc.rename(columns={"Predicted_Close": "Predicted_Close"})
-
-                            #     return fc[["Date", "Predicted_Close"]], "Predicted_Close"
-
                             else:
                                 raise ValueError(f"Mô hình không hỗ trợ: {choice}")
 
@@ -791,18 +732,7 @@ def page_home():
                                 st.warning(f"{tk}: Model hoặc scaler chưa huấn luyện")
                                 failed_tickers.append(tk)
                                 continue
-                        # elif model_choice == "Prophet":
-                        #     model_file = f"models/prophet/prophet_{tk}.pkl"
-                        #     if use_saved and not os.path.exists(model_file):
-                        #         st.warning(f"{tk}: Model chưa huấn luyện")
-                        #         failed_tickers.append(tk)
-                        #         continue
-                        # elif model_choice == "ARIMA":
-                        #     model_file = f"models/arima/arima_{tk}.pkl"
-                        #     if use_saved and not os.path.exists(model_file):
-                        #         st.warning(f"{tk}: Model chưa huấn luyện")
-                        #         failed_tickers.append(tk)
-                        #         continue
+                        
                         else:
                             st.warning(f"Mô hình {model_choice} không hỗ trợ.")
                             failed_tickers.append(tk)
@@ -831,9 +761,7 @@ def page_home():
                             failed_tickers.append(tk)
                             continue
 
-                        
                         # CHUẨN HOÁ FORECAST RESULT CHO CÁC MÔ HÌNH
-                        
                         
                         fc_df = fc_df.copy()
                         rename_map = {
@@ -850,15 +778,6 @@ def page_home():
                         if "Date" in fc_df.columns:
                             fc_df["Date"] = pd.to_datetime(fc_df["Date"])
 
-                        # # Với LSTM (có thể multi-output)
-                        # if model_choice == "LSTM":
-                        #     base_cols = ["Date", "Open", "High", "Low", "Close", "Volume"]
-                        #     predicted_cols = [col for col in fc_df.columns if col.startswith("Predicted_")]
-                        #     for col in base_cols:
-                        #         if col not in fc_df.columns:
-                        #             fc_df[col] = None
-                        #     fc_df = fc_df[base_cols + predicted_cols]
-                        # Với LSTM hoặc TCN (có thể multi-output)
                         if model_choice in ["LSTM", "TCN"]:
                             base_cols = ["Date", "Open", "High", "Low", "Close", "Volume"]
                             predicted_cols = [col for col in fc_df.columns if col.startswith("Predicted_")]
@@ -866,15 +785,6 @@ def page_home():
                                 if col not in fc_df.columns:
                                     fc_df[col] = None
                             fc_df = fc_df[base_cols + predicted_cols]
-
-                        # # Với Prophet/ARIMA
-                        # else:
-                            
-                        #     required_cols = ["Date", "Open", "High", "Low", "Close", "Volume", "Predicted_Close"]
-                        #     for col in required_cols:
-                        #         if col not in fc_df.columns:
-                        #             fc_df[col] = None
-                        #     fc_df = fc_df[required_cols]
 
 
                         # Lưu vào session_state
@@ -1255,8 +1165,6 @@ def page_home():
                             fig.autofmt_xdate()
                             fig.tight_layout()
                             st.pyplot(fig)
-
-                   
                 
                 # ================== DỰ BÁO HÀNH VI NHÀ ĐẦU TƯ ==================
                 with sub_tabs[2]:
@@ -2922,28 +2830,7 @@ def page_home():
 
                     # ===========
 
-                    # elif model_type=="Prophet":
-                    #     train_prophet_model(df_train, ticker)
-                    #     try:
-                            
-                    #         pred_df = forecast_prophet(df_clean, forecast_days=horizon, use_saved_model=True, ticker=ticker)
-                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                    #         pred_df["Ticker"]=ticker
-                    #         db.save_forecast_last(ticker, pred_df)
-                    #         logs.append({"Ticker": ticker, "Status":"✅ Prophet saved"})
-                    #     except Exception:
-                    #         logs.append({"Ticker": ticker, "Status":"✅ Prophet trained (no auto forecast)"})
-                    # elif model_type=="ARIMA":
-                    #     train_arima_model(df_train, ticker)
-                    #     try:
-                            
-                    #         pred_df = forecast_arima(df_clean, forecast_days=horizon, use_saved_model=True, ticker=ticker)
-                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                    #         pred_df["Ticker"]=ticker
-                    #         db.save_forecast_last(ticker, pred_df)
-                    #         logs.append({"Ticker": ticker, "Status":"✅ ARIMA saved"})
-                    #     except Exception:
-                    #         logs.append({"Ticker": ticker, "Status":"✅ ARIMA trained (no auto forecast)"})
+                    
                 except Exception as e:
                     logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
             return logs
@@ -2978,15 +2865,7 @@ def page_home():
                                             help="Chọn mã cổ phiếu hợp lệ để huấn luyện mô hình dự báo.",
                                             key="train_model_ticker_select")
 
-                    # model_type = st.selectbox(
-                    #     "Chọn mô hình:",
-                    #     ["LSTM", "Prophet", "ARIMA"],
-                    #     help=(
-                    #         "LSTM – Mạng nơ-ron hồi quy cho chuỗi thời gian, cần ít nhất 60 dòng dữ liệu.\n"
-                    #         "Prophet – Mô hình của Meta, giỏi xử lý seasonality.\n"
-                    #         "ARIMA – Mô hình thống kê cổ điển, phù hợp chuỗi thời gian ổn định."
-                    #     )
-                    # )
+                    
                     model_type = st.selectbox(
                         "Chọn mô hình:",
                         ["LSTM", "TCN"],
@@ -3035,7 +2914,7 @@ def page_home():
                                             st.error("⚠️ Không đủ dữ liệu để train LSTM (cần >= 60 ngày).")
                                         else:
                                             # Train LSTM multi-output
-                                            # model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=epochs, batch_size=batch_size)
+                                            
                                             model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=epochs, batch_size=batch_size, look_back=cfg["lookback"])
                                             # Tính RMSE/MAPE chỉ cho Close
                                             rmse, mape = evaluate_lstm_insample(model, scaler, df_train, cfg["lookback"])
@@ -3214,44 +3093,7 @@ def page_home():
                                                         st.warning("⚠️ Không tạo được dự báo hợp lệ (không đủ window/dữ liệu).")
 
 
-                                    # # ====            
-                                    # elif model_type == "Prophet":
-                                    #     # Train Prophet
-                                        
-
-                                    #     model = train_prophet(df_train, ticker)  # lưu tự động vào models/prophet/prophet_{ticker}.pkl
-
-                                    #     # Dự báo và lưu Predicted_Close
-                                    #     try:
-                                    #         pred_df = forecast_prophet(model, forecast_days=cfg["forecast_days"])
-                                    #         pred_df = pred_df.rename(columns={"ds": "Date", "yhat": "Predicted_Close"})
-                                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                                    #         pred_df["Ticker"] = ticker
-                                    #         db.save_forecast_last(ticker, pred_df)
-                                    #         st.success(f"✅ Mô hình Prophet đã được huấn luyện và lưu dự báo cho: {ticker}")
-                                    #     except Exception:
-                                    #         st.success(f"✅ Mô hình Prophet đã được huấn luyện cho: {ticker}.")
-
-                                    # # ====
-                                    # elif model_type == "ARIMA":
-                                    #     # Huấn luyện và lưu model vào models/arima/arima_{ticker}.pkl
-                                    #     model = train_arima(df_train, ticker)  
-
-                                    #     try:
-                                    #         # Dự báo sử dụng model vừa lưu
-                                    #         pred_df = forecast_arima(
-                                    #             df_clean, 
-                                    #             forecast_days=cfg["forecast_days"], 
-                                    #             use_saved_model=True,  # đảm bảo dùng model đã lưu
-                                    #             ticker=ticker          # truyền ticker đúng
-                                    #         )
-                                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                                    #         pred_df["Ticker"] = ticker
-                                    #         db.save_forecast_last(ticker, pred_df)
-                                    #         st.success(f"✅ Mô hình ARIMA đã được huấn luyện và lưu dự báo cho: {ticker}")
-                                    #     except Exception:
-                                    #         st.success(f"✅ Mô hình ARIMA đã được huấn luyện cho: {ticker}.")
-
+                                    
                             except Exception as e:
                                 st.error(f"❌ Lỗi huấn luyện {ticker}: {e}")
 
@@ -3461,46 +3303,6 @@ def page_home():
                                             })
                                         else:
                                             logs.append({"Ticker": ticker, "Status": "⚠️ Không có dự báo"})
-
-
-                                    # # -------------------
-                                    # # Prophet
-                                    # # -------------------
-                                    # elif model_type == "Prophet":
-                                    #     model = train_prophet(df_train, ticker)
-                                    #     try:
-                                    #         pred_df = forecast_prophet(model, forecast_days=cfg["forecast_days"])
-                                    #         pred_df = pred_df.rename(columns={"ds": "Date", "yhat": "Predicted_Close"})
-                                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                                    #         pred_df["Ticker"] = ticker
-                                    #         db.save_forecast_last(ticker, pred_df)
-                                    #         logs.append({"Ticker": ticker, "Status": "✅ Mô hình Prophet đã được huấn luyện và lưu dự báo."})
-                                    #     except Exception:
-                                    #         logs.append({"Ticker": ticker, "Status": "✅ Mô hình Prophet đã được huấn luyện."})
-
-                                    # # -------------------
-                                    # # ARIMA
-                                    # # -------------------
-                                    # elif model_type == "ARIMA":
-                                    #     try:
-                                    #         # Huấn luyện và lưu model
-                                    #         model = train_arima(df_train, ticker)
-
-                                    #         # Dự báo
-                                    #         pred_df = forecast_arima(
-                                    #             df_clean, 
-                                    #             forecast_days=cfg["forecast_days"], 
-                                    #             use_saved_model=True,
-                                    #             ticker=ticker
-                                    #         )
-                                    #         pred_df["Date"] = pd.to_datetime(pred_df["Date"]).dt.strftime("%Y-%m-%d")
-                                    #         pred_df["Ticker"] = ticker
-                                    #         db.save_forecast_last(ticker, pred_df)
-                                    #         logs.append({"Ticker": ticker, "Status": "✅ Mô hình ARIMA đã được huấn luyện và lưu dự báo."})
-
-                                    #     except Exception as e:
-                                    #         logs.append({"Ticker": ticker, "Status": f"⚠️ ARIMA huấn luyện xong (dự báo thất bại: {str(e)})"})
-
 
                                     else:
                                         logs.append({"Ticker": ticker, "Status": f"❌ Mô hình không hợp lệ: {model_type}"})
@@ -3733,9 +3535,6 @@ def page_home():
                         st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
 
                 
-
-
-
         # ---------------------------------------------------------------------------
                                 # Tab Báo cáo
         # ---------------------------------------------------------------------------
@@ -3885,8 +3684,6 @@ def page_home():
 
                                 # Tái cân bằng
 
-                                # ===== Lấy dữ liệu Tái cân bằng từ session =====
-                                # weights_df = st.session_state.get("weights_df") if include_rebalance else None
 
                                 # ===== Lấy dữ liệu Tái cân bằng từ session =====
                                 weights_df = st.session_state.get("rebalance_weights_df") if include_rebalance else None
@@ -3913,7 +3710,7 @@ def page_home():
                                     include_forecast=include_forecast,
                                     include_optimization=include_optimization,
                                 )
-                                with safe_open_pdf(pdf_file_path) as f:
+                                with safe_open_pdf(pdf_path) as f:
                                         st.download_button(
                                             label="📥 Tải về báo cáo",
                                             data=f,
@@ -4094,8 +3891,6 @@ def page_home():
                                 risk_df=risk_df,                 # dict
                                 weights_df=weights_df if include_rebalance else None,
                                     
-                                # weights_df=weights_df,           # DataFrame
-                                # allocation_df=allocation_df,     # dict
                                 alloc_display=alloc_display,                
                                 adj_display=adj_display if 'adj_display' in locals() else None, 
                                 forecast_df=forecast_df,         # dict
