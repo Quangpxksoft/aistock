@@ -172,7 +172,12 @@ def create_db():
     """)
 
     # --- ADMIN SEED (idempotent + safe) ---
-    c.execute("SELECT 1 FROM users WHERE username = 'admin' LIMIT 1")
+    c.execute("""
+        SELECT 1 FROM users
+        WHERE username = 'admin' OR email = 'admin@example.com'
+        LIMIT 1
+    """)
+
     if not c.fetchone():
         password_hash = bcrypt.hashpw(
             "admin123".encode(),
