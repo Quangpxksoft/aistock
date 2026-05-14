@@ -18,15 +18,17 @@ def login_page():
 
         with btn_left:
             if st.button("Đăng nhập", use_container_width=True):
-                user = login_user(username, password)
-                if user:
-                    st.session_state["user"] = user
-                    st.session_state["page"] = "home"
-                    st.session_state["login_error"] = None
-                    st.rerun()
+                if not username or not password:
+                    st.session_state["login_error"] = "Vui lòng nhập đầy đủ thông tin"
                 else:
-                    st.session_state["login_error"] = "Tên đăng nhập hoặc mật khẩu không đúng"
-
+                    user = login_user(username, password)
+                    if user:
+                        st.session_state["user"] = user
+                        st.session_state["page"] = "home"
+                        st.session_state["login_error"] = None
+                        st.rerun()
+                    else:
+                        st.session_state["login_error"] = "Tên đăng nhập hoặc mật khẩu không đúng"
         with btn_right:
             if st.button("Đăng ký", use_container_width=True):
                 st.session_state["page"] = "register"

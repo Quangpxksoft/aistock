@@ -36,10 +36,6 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from tensorflow.keras.callbacks import EarlyStopping
 
-try:
-    import tensorflow as tf
-except ImportError:
-    tf = None
 # ------------------- Local imports -------------------
 
 # Utilities and modules
@@ -60,11 +56,7 @@ from utils.user_history import record_user_ticker_view
 from utils.user_manager import init_db, login_user, register_user
 from config import DB_PATH
 from register_page import register_page
-
-#from utils.upgrade_page import upgrade_page
-from init_db import get_role_by_username
-
-# from utils.email_scheduler import run_email_scheduler
+from utils.user_manager import get_role_by_username
 
 from utils.reporting import (
     get_all_tickers_in_reports_custom,
@@ -108,7 +100,9 @@ from utils import (
     data_cleaner, portfolio_optimizer, risk_metrics,
     backtest, performance, strategy, reporting
 )
+from config import ensure_dirs
 
+ensure_dirs()
 # Khởi tạo ngày duy nhất cho toàn bộ session
 if "today_str" not in st.session_state:
     st.session_state["today_str"] = datetime.today().strftime("%d%m%Y")
@@ -135,9 +129,8 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 # # ================== KHỞI TẠO TRẠNG THÁI ==================
-# init_db()
-if not os.path.exists(DB_PATH):
-    init_db()
+init_db()
+
 
 if "page" not in st.session_state:
     st.session_state["page"] = "login"
