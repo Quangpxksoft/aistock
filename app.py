@@ -134,7 +134,9 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 # # ================== KHỞI TẠO TRẠNG THÁI ==================
-init_db()
+# init_db()
+if not os.path.exists(DB_PATH):
+    init_db()
 
 if "page" not in st.session_state:
     st.session_state["page"] = "login"
