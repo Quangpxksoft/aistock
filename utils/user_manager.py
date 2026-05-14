@@ -78,6 +78,7 @@ def register_user(full_name, username, phone_number, email, password, role="gues
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    
 
     try:
         c.execute("SELECT id FROM users WHERE username=?", (username,))

@@ -1,20 +1,49 @@
-# Python
-__pycache__/
-*.pyc
-
-# MacOS
+# =========================
+# OS / SYSTEM FILES
+# =========================
 .DS_Store
 
-# Database
-*.db
+# =========================
+# PYTHON CACHE
+# =========================
+__pycache__/
+*.py[cod]
 
-# Model files
-*.h5
-*.pkl
-
-# Reports
-reports/*.pdf
-
-# Env
+# =========================
+# VIRTUAL ENV
+# =========================
 venv/
-.env
+.env/
+.venv/
+
+# =========================
+# STREAMLIT
+# =========================
+.streamlit/secrets.toml
+
+# =========================
+# LOGS
+# =========================
+*.log
+logs/
+
+# =========================
+# DATABASE (CRITICAL FOR YOUR BUG)
+# =========================
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# REPORTS / RUNTIME FILES
+# =========================
+reports/
+*.pdf
+
+# =========================
+# MODELS (OPTIONAL - nếu bạn train runtime)
+# =========================
+models/*.pkl
+models/*.h5
+models/*.pt
