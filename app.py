@@ -58,6 +58,7 @@ from utils.db_manager import load_data, save_forecast, get_connection, load_fore
 from utils.user_history import record_user_ticker_view
 
 from utils.user_manager import init_db, login_user, register_user
+from config import DB_PATH
 from register_page import register_page
 
 #from utils.upgrade_page import upgrade_page
