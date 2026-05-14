@@ -17,7 +17,7 @@ def init_db():
             full_name TEXT NOT NULL,
             username TEXT NOT NULL UNIQUE,
             phone_number TEXT,
-            email TEXT UNIQUE,
+            email TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'guest'
                 CHECK(role IN ('guest','member','premium','supervisor','admin')),
@@ -77,8 +77,7 @@ def register_user(full_name, username, phone_number, email, password, role="gues
                   payment_method=None, payment_details=None, duration_months=1, amount_paid=0):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
+    password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
 
     try:
         c.execute("SELECT id FROM users WHERE username=?", (username,))
@@ -116,7 +115,7 @@ def login_user(username, password):
     """, (username,))
     user = c.fetchone()
     conn.close()
-    if user and bcrypt.checkpw(password.encode('utf-8'), user[5].encode('utf-8')):
+    if user and bcrypt.checkpw(password.encode('utf-8'), user[5]):
         return {
             "id": user[0],
             "full_name": user[1],
