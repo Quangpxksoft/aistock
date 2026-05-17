@@ -1,11 +1,12 @@
 # utils/expire_subscriptions.py
-import sqlite3
+import psycopg
+from config import DATABASE_URL
 from datetime import date
-from config import DB_PATH
+
 
 def expire_subscriptions():
     """Tự động hết hạn subscription khi quá hạn"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg.connect(DATABASE_URL)
     c = conn.cursor()
 
     today = date.today()

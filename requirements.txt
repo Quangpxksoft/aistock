@@ -28,6 +28,10 @@ setuptools
 wheel
 python-dotenv
 keras-tcn
+psycopg[binary]
+# psycopg2-binary
+sqlalchemy
+
 
 
 

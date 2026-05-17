@@ -1,3 +1,4 @@
+
 # =================================================================
 # app.py – AIS-Analysis Investment Stock - Ksoft Software Soluttion
 # =================================================================
@@ -54,7 +55,7 @@ from utils.db_manager import load_data, save_forecast, get_connection, load_fore
 from utils.user_history import record_user_ticker_view
 
 from utils.user_manager import init_db, login_user, register_user
-from config import DB_PATH
+from config import DATABASE_URL
 from register_page import register_page
 from utils.user_manager import get_role_by_username
 
@@ -150,20 +151,20 @@ def get_valid_tickers(portfolio_df):
         return []   
 # ---- Hàm tiện ích show_notification ---------------------------------------
 def show_notification(ph, notif_type: str, msg: str):
-    """Ghi đè nội dung placeholder với thông báo mới."""
-    ph.empty()          # xoá thông báo cũ
+    if ph is None:
+        return
+
+    try:
+        ph.empty()
+    except:
+        return
+
     if notif_type == "success":
         ph.success(msg)
     elif notif_type == "warning":
         ph.warning(msg)
     elif notif_type == "info":
         ph.info(msg)
-
-# # 🚀 Khởi động lịch gửi email tự động (chỉ gọi 1 lần)
-
-# if "email_scheduler_started" not in st.session_state:
-#     st.session_state["email_scheduler_started"] = True
-#     threading.Thread(target=run_email_scheduler, daemon=True).start()
 
 
 # ========= Email helper =====================================================
@@ -195,7 +196,6 @@ def init_session_keys():
         "user": None,
         "download_frames": [],
         "portfolio_data": None,
-        "last_update": {},
         "invalid_tickers": [],
         "page": "login",
         "enter_home": False,
@@ -274,12 +274,7 @@ def _download_one(ticker: str, from_date, to_date, source="yf") -> bool:
         # Lưu vào DB
         db.insert_new_rows(ticker, df)
         # Cập nhật session_state last_update nếu có Streamlit
-        try:
-            if "last_update" not in st.session_state:
-                st.session_state["last_update"] = {}
-            st.session_state["last_update"][ticker] = datetime.now()
-        except Exception:
-            pass  # Nếu không có Streamlit, bỏ qua
+        
         return True
     except Exception:
         return False
@@ -320,7 +315,7 @@ def run_download(target_list, from_date, to_date):
         )
     if failed:
         show_notification(
-            st.session_state.get("update_msg_ph", "Cập nhật không thành công"),
+            st.session_state["load_msg"],
             "warning",
             "⚠️ Không có dữ liệu cho " + ", ".join(failed)
         )
@@ -406,7 +401,7 @@ def page_home():
     # ✅ Nhập danh sách ticker
     tickers_input = st.sidebar.text_input(
         "Nhập ticker (cách bởi dấu phẩy)",
-        "VIC.VN",
+        "VIC.VN,FPT.VN",
         help="Ví dụ: SHB.VN,ACB.VN,VIC.VN",
         key="tickers_input"
     )
@@ -439,7 +434,7 @@ def page_home():
 
 
     # ---- Auto‑update + Drawdown slider ----------------------------------------
-    auto_update = st.sidebar.checkbox("Tự động cập nhật mỗi 15 phút", True, key="auto_update")
+    
     max_drawdown_percent = st.sidebar.slider("🎯 Giới hạn Max Drawdown (%)", 0.0, 100.0, 25.0,
                                             help="Chỉ giữ lại mã có mức giảm tối đa ≤ giá trị này",
                                             key="max_dd_pct")
@@ -461,12 +456,9 @@ def page_home():
 
     # ========= Session init =====================================================
     for k, v in {
-        "last_update":      {},
         "portfolio_data":   None,
         "invalid_tickers":  [],
-        "saved_msg_ph":     None,
         "load_msg":         None,
-        "update_msg_ph":    None,
     }.items():
         st.session_state.setdefault(k, v)
 
@@ -476,84 +468,13 @@ def page_home():
     if st.session_state.get("load_msg") is None:          # 👈 dùng .get()
         st.session_state["load_msg"] = st.empty()         # placeholder tải dữ liệu
 
-    if st.session_state.get("update_msg_ph") is None:     # 👈 dùng .get()
-        st.session_state["update_msg_ph"] = st.empty()    # placeholder cảnh báo/auto‑update
-
-
-    # ========= Auto‑update list ================================================
-    tickers_to_update: List[str] = []
-    if auto_update:
-        now = datetime.now()
-        for t in tickers:
-            last = st.session_state["last_update"].get(t)
-            if last is None or (now - last).total_seconds() > 900:
-                tickers_to_update.append(t)
-
     
-    # ── Placeholder THÔNG BÁO nằm ngay dưới nút ────────────────────────
-    # Gán lại vào session_state để mọi nơi dùng chung
-    st.session_state["update_msg_ph"] = st.empty()
-    ph_upd = st.session_state["update_msg_ph"]
-
-
-    # ========= Auto‑update 15 phút (tối ưu thông báo) ==========================
-    if tickers_to_update:
-        ph_upd = st.session_state["update_msg_ph"]
-
-        # # dòng đầu tiên: đang chạy
-        ph_upd.info("🕒 Đang tự động cập nhật dữ liệu…")
-
-        success_messages, failed_messages = [], []
-        source = "yf"
-        for t in tickers_to_update:
-            try:
-                # ⚡ Load dữ liệu chuẩn từ load_data
-                df_raw = load_data_dl(t, start_date=str(from_date), end_date=str(to_date), source=source)
-                if df_raw.empty:
-                    failed_messages.append(t)
-                    continue
-
-                # --- Append vào frame toàn cục để dùng tiếp ---
-                _download_frames.append(df_raw)
-
-                # --- Lưu vào DB ---
-                db.insert_new_rows(t, df_raw)
-
-                # --- Merge / cập nhật session_state nếu dùng Streamlit ---
-                try:
-                    if "tickers_data" not in st.session_state:
-                        st.session_state["tickers_data"] = {}
-                    st.session_state["tickers_data"][t] = df_raw
-                except Exception:
-                    pass  # Nếu không dùng Streamlit, bỏ qua
-
-                # --- Ghi success ---
-                success_messages.append(t)
-
-            except Exception:
-                failed_messages.append(t)
-
-
-        # # ---- Ghi đè placeholder bằng danh sách mã đã cập nhật ----
-        if success_messages:
-            ph_upd.info(
-                "🕒 Đang tự động cập nhật dữ liệu… "
-                + ", ".join(success_messages)
-                + "..."
-            )
-
-        # ---- Nếu có mã thất bại, ghi đè tiếp bằng cảnh báo ----
-        if failed_messages:
-            ph_upd.warning("⚠️ Không có dữ liệu cho " + ", ".join(failed_messages))
-            st.session_state["invalid_tickers"] = list(
-                set(st.session_state.get("invalid_tickers", [])) | set(failed_messages)
-            )
-        
-
     # —— giữ nguyên đoạn kiểm tra dữ liệu ——
     portfolio_data: pd.DataFrame | None = st.session_state["portfolio_data"]
-    if portfolio_data is None or portfolio_data.empty:
-        st.stop()
+
+    if portfolio_data is None:
+        st.info("Chưa có dữ liệu Ticker. Hãy nhấn 📊 Phân tích & dự báo.")
+        return
     
     # ====================CHATBOT=================================
     # --- Khởi tạo lịch sử chat chung ---
@@ -633,26 +554,24 @@ def page_home():
                     )
 
                     forecast_days = st.slider("Số ngày dự báo", 1, 30, 7, key="forecast_days_slider")
-                    use_saved = st.checkbox("Dùng mô hình đã huấn luyện", value=False, key="forecast_use_saved")
+                    # use_saved = st.checkbox("Dùng mô hình đã huấn luyện", value=False, key="forecast_use_saved")
 
-                    @st.cache_data(show_spinner=False)
-                    def cached_forecast(choice, df_json, n_days, use_saved_model, mdl_name):
-                         
+                    @st.cache_resource(show_spinner=False)
+                    def cached_forecast(choice, df_json, n_days, mdl_name):
                         import traceback
                         # df = pd.read_json(df_json)
                         df = pd.read_json(df_json, orient="records")
 
                         try:
-                            # tf.keras.backend.clear_session()
+                            
                             if choice == "LSTM":
-                                # from utils.lstm_model import load_lstm_model, train_lstm_model, predict_lstm
+                                
                                 ticker = mdl_name.replace("lstm_", "")
-                                if use_saved_model:
-                                    model, scaler = load_lstm_model(ticker)
-                                    if model is None or scaler is None:
-                                        return None, "ModelNotTrained"
-                                else:
-                                    # model, scaler = train_lstm_model(df, ticker, look_back=cfg["lookback"])
+                                
+                                model, scaler = load_lstm_model(ticker)
+
+                                if model is None or scaler is None:
+                                    tf.keras.backend.clear_session()
                                     model, scaler = train_lstm_model(df, ticker)
 
                                 if "Close" not in df.columns or df["Close"].isnull().all():
@@ -674,11 +593,11 @@ def page_home():
                             # ==========TCN==========
                             elif choice == "TCN":
                                 ticker = mdl_name.replace("tcn_", "")
-                                if use_saved_model:
-                                    model, scaler = load_tcn_model(ticker)
-                                    if model is None or scaler is None:
-                                        return None, "ModelNotTrained"
-                                else:
+                                
+                                model, scaler = load_tcn_model(ticker)
+
+                                if model is None or scaler is None:
+                                    tf.keras.backend.clear_session()
                                     model, scaler = train_tcn_model(df, ticker)
 
                                 if "Close" not in df.columns or df["Close"].isnull().all():
@@ -705,53 +624,50 @@ def page_home():
                     processed, failed_tickers = [], []
                     status_ph = st.empty()
 
+                    if model_choice not in ["LSTM", "TCN"]:
+                        st.error(f"Mô hình {model_choice} không hỗ trợ.")
+                        st.stop()
+
                     for tk in valid_tickers:
                         df_tk = portfolio_data[portfolio_data["Ticker"] == tk]
                         if df_tk.empty or "Close" not in df_tk.columns:
                             st.warning(f"{tk}: Dữ liệu không hợp lệ hoặc thiếu")
                             failed_tickers.append(tk)
                             continue
-                        #===
+                        
+                        
+                        
+                        model_exists = False
+
                         if model_choice == "LSTM":
                             model_file = f"models/lstm/lstm_model_{tk}.h5"
-                            scaler_file = f"models/lstm/lstm_scaler_{tk}.pkl"  # scaler cũng cần check
-                            if use_saved and (not os.path.exists(model_file) or not os.path.exists(scaler_file)):
-                                st.warning(f"{tk}: Model hoặc scaler chưa huấn luyện")
-                                failed_tickers.append(tk)
-                                continue
+                            scaler_file = f"models/lstm/lstm_scaler_{tk}.pkl"
+                            model_exists = os.path.exists(model_file) and os.path.exists(scaler_file)
+
                         elif model_choice == "TCN":
                             model_file = f"models/tcn/tcn_model_{tk}.h5"
                             scaler_file = f"models/tcn/tcn_scaler_{tk}.pkl"
-                            if use_saved and (not os.path.exists(model_file) or not os.path.exists(scaler_file)):
-                                st.warning(f"{tk}: Model hoặc scaler chưa huấn luyện")
-                                failed_tickers.append(tk)
-                                continue
-                        
-                        else:
-                            st.warning(f"Mô hình {model_choice} không hỗ trợ.")
-                            failed_tickers.append(tk)
-                            continue
+                            model_exists = os.path.exists(model_file) and os.path.exists(scaler_file)
 
-                        
-                        status_ph.info(f"⏳ Đang dự báo {tk}…, thời gian phụ thuộc vào khối lượng dữ liệu của bạn.")
+                        # 👉 CHỈ HIỆN INFO KHI CHƯA CÓ MODEL
+                        if not model_exists:
+                            status_ph.info(f"⏳ Đang huấn luyện & dự báo {tk}…, thời gian phụ thuộc vào khối lượng dữ liệu của bạn.")
 
                        
                         df_tk = df_tk.reset_index(drop=True)
 
                         fc_df, error_type = cached_forecast(
-                            model_choice, df_tk.to_json(orient="columns"),  # mặc định, không cần ghi cũng được
+                            model_choice,
+                            df_tk.to_json(orient="columns"),
                             forecast_days,
-                            use_saved,
                             f"{model_choice.lower()}_{tk}"
                         )
 
                         if fc_df is None or fc_df.empty:
-                            if error_type == "ModelNotTrained":
-                                st.warning(f"{tk}: Model chưa được huấn luyện hoặc không tồn tại.")
-                            elif error_type == "DataError":
-                                st.warning(f"{tk}: Không thể dự báo – dữ liệu đầu vào lỗi hoặc model không dùng được.")
+                            if error_type == "DataError":
+                                st.warning(f"{tk}: Không thể dự báo – dữ liệu đầu vào lỗi hoặc không hợp lệ.")
                             else:
-                                st.warning(f"{tk}: Lỗi không xác định.")
+                                st.warning(f"{tk}: Lỗi khi dự báo (model hoặc dữ liệu).")
                             failed_tickers.append(tk)
                             continue
 

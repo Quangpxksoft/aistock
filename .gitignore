@@ -1,3 +1,4 @@
+
 # =========================
 # OS / SYSTEM FILES
 # =========================
@@ -13,13 +14,14 @@ __pycache__/
 # VIRTUAL ENV
 # =========================
 venv/
-.env/
+.env
+*.env
 .venv/
 
 # =========================
 # STREAMLIT
 # =========================
-.streamlit/secrets.toml
+.streamlit/
 
 # =========================
 # LOGS
@@ -28,21 +30,20 @@ venv/
 logs/
 
 # =========================
-# DATABASE (CRITICAL FOR YOUR BUG)
+# DATABASE (LOCAL ONLY)
 # =========================
-database/
 *.db
 *.sqlite
 *.sqlite3
 
 # =========================
-# REPORTS / RUNTIME FILES
+# REPORTS / OUTPUT
 # =========================
 reports/
 *.pdf
 
 # =========================
-# MODELS (OPTIONAL - nếu bạn train runtime)
+# MODELS (runtime artifacts)
 # =========================
 models/*.pkl
 models/*.h5

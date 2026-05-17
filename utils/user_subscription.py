@@ -1,6 +1,6 @@
-import sqlite3
+import psycopg
+from config import DATABASE_URL
 from datetime import date, timedelta
-from config import DB_PATH
 
 # Bảng giá
 PRICE_TABLE = {
@@ -23,7 +23,7 @@ def create_subscription(user_id: int, role: str, duration_months: int = 1,
                         payment_method: str = None, payment_details: str = None,
                         amount_paid: int = 0, status: str = 'pending'):
     """Tạo subscription mới."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg.connect(DATABASE_URL)
     c = conn.cursor()
     start_date = date.today()
     end_date = start_date + timedelta(days=30*duration_months)
@@ -42,7 +42,7 @@ def create_subscription(user_id: int, role: str, duration_months: int = 1,
 
 def get_user_subscription(user_id: int):
     """Lấy subscription gần nhất"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg.connect(DATABASE_URL)
     c = conn.cursor()
     c.execute("""
         SELECT role, amount_paid, status, duration_months, start_date, end_date, active, created_at

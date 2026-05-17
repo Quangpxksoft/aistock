@@ -1,7 +1,8 @@
 import streamlit as st
 from utils.user_manager import register_user, login_user, upgrade_user
-import sqlite3
-from config import DB_PATH
+import psycopg
+from config import DATABASE_URL
+
 
 # Quyền và lợi ích
 FEATURES_INFO = {
@@ -124,7 +125,7 @@ def register_page():
             return
         
         # ✅ Kiểm tra email tồn tại chưa
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg.connect(DATABASE_URL)
         c = conn.cursor()
         c.execute("SELECT id FROM users WHERE email=?", (email,))
         existing_email = c.fetchone()

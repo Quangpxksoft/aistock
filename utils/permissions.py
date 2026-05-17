@@ -1,6 +1,6 @@
 # permissions.py
-import sqlite3
-from utils.user_manager import DB_PATH
+import psycopg
+from config import DATABASE_URL
 
 # Bản đồ role -> danh sách quyền/tab
 ROLE_PERMISSIONS = {
@@ -24,7 +24,7 @@ def can_access(role: str, feature: str) -> bool:
 # ==== TRUY VẤN QUYỀN TỪ DB ====
 def get_role_by_user_id(user_id: int) -> str | None:
     """Lấy role của user từ DB bằng user_id."""
-    conn = sqlite3.connect(DB_PATH)
+    
     c = conn.cursor()
     c.execute("SELECT role FROM users WHERE id=?", (user_id,))
     row = c.fetchone()
@@ -33,7 +33,7 @@ def get_role_by_user_id(user_id: int) -> str | None:
 
 def get_role_by_username(username: str) -> str | None:
     """Lấy role của user từ DB bằng username."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg.connect(DATABASE_URL)
     c = conn.cursor()
     c.execute("SELECT role FROM users WHERE username=?", (username,))
     row = c.fetchone()

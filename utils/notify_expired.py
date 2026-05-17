@@ -1,12 +1,13 @@
 # notify_expired_scheduler.py
-import sqlite3
 from datetime import datetime
-from config import DB_PATH
+import psycopg
+from config import DATABASE_URL
 from utils.email_sender import send_report_via_email
 import logging
 import os
 import schedule
 import time
+
 
 # ===== Cấu hình logging =====
 os.makedirs("logs", exist_ok=True)
@@ -18,7 +19,7 @@ logging.basicConfig(
 
 def notify_expired_subscriptions():
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg.connect(DATABASE_URL)
         c = conn.cursor()
 
         today = datetime.today().date()

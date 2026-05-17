@@ -1,8 +1,8 @@
 #
 import streamlit as st
-import sqlite3
-from config import DB_PATH
 from datetime import datetime
+import psycopg
+from config import DATABASE_URL
 
 def admin_activate_page():
     user = st.session_state.get("user")
@@ -11,7 +11,7 @@ def admin_activate_page():
         return
 
     st.title("🛠 Quản lý tài khoản pending")
-    conn = sqlite3.connect(DB_PATH)
+    conn = psycopg.connect(DATABASE_URL)
     c = conn.cursor()
 
     if st.button("⬅️ Quay lại trang chủ"):
