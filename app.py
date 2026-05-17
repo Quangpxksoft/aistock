@@ -130,7 +130,9 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 # # ================== KHỞI TẠO TRẠNG THÁI ==================
-init_db()
+if "db_initialized" not in st.session_state:
+    init_db()
+    st.session_state["db_initialized"] = True
 
 
 if "page" not in st.session_state:

@@ -12,9 +12,11 @@ def to_date(x):
     return pd.to_datetime(x).date()
 
 def get_connection():
-    return psycopg.connect(DATABASE_URL)
-
-
+    return psycopg.connect(
+    DATABASE_URL,
+    sslmode="require",
+    connect_timeout=10
+)
 # =========================
 # INIT TABLE
 # =========================
