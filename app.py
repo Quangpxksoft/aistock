@@ -85,7 +85,6 @@ from utils.tcn_model import load_tcn_model, train_tcn_model, predict_tcn
 
 from utils.data_loader import load_data as load_data_dl
 
-from datetime import date, timedelta
 
 today = date.today()
 cutoff = today - timedelta(days=180)
@@ -94,7 +93,6 @@ cutoff = today - timedelta(days=180)
 # Pages (Streamlit UI)
 sys.path.append(os.path.dirname(__file__))
 from login_page import login_page
-from register_page import register_page
 
 # ---- local utils -----------------------------------------------------------
 from utils import (
