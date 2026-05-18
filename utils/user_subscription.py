@@ -45,7 +45,7 @@ def create_subscription(
                 (user_id, role, payment_method, payment_details,
                  duration_months, start_date, end_date,
                  active, amount_paid, status, received_by, received_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 1, %s, %s, NULL, NULL)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, NULL, NULL)
             """, (
                 user_id,
                 role,
