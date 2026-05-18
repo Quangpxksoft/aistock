@@ -6,6 +6,7 @@ import re
 import pandas as pd
 from datetime import datetime, timedelta
 from config import (
+    DATABASE_URL,
     DB_HOST,
     DB_NAME,
     DB_USER,
@@ -16,13 +17,24 @@ from config import (
 # =========================
 # CONNECTION (SAFE + CLEAN)
 # =========================
+# def get_connection():
+#     return psycopg.connect(
+#         host=DB_HOST,
+#         dbname=DB_NAME,
+#         user=DB_USER,
+#         password=DB_PASSWORD,
+#         port=DB_PORT,
+#         sslmode="require",
+#         sslrootcert=None,
+#         connect_timeout=10,
+#         keepalives=1,
+#         keepalives_idle=30,
+#         keepalives_interval=10,
+#         keepalives_count=5
+#     )
 def get_connection():
-    return psycopg.connect(
-        host=DB_HOST,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        port=DB_PORT,
+
+    common_kwargs = dict(
         sslmode="require",
         sslrootcert=None,
         connect_timeout=10,
@@ -32,6 +44,20 @@ def get_connection():
         keepalives_count=5
     )
 
+    if DATABASE_URL:
+        return psycopg.connect(
+            DATABASE_URL,
+            **common_kwargs
+        )
+
+    return psycopg.connect(
+        host=DB_HOST,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        port=DB_PORT,
+        **common_kwargs
+    )
 # =========================
 # UTILS
 # =========================
