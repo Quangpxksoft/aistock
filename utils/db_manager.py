@@ -68,7 +68,7 @@ def safe_ticker(ticker: str) -> str:
     ticker = ticker.upper().strip()
 
     # chỉ cho phép chữ, số, _
-    if not re.match(r"^[A-Z0-9_]+$", ticker):
+    if not re.match(r"^[A-Z0-9_.]+$", ticker):
         raise ValueError(f"Invalid ticker: {ticker}")
 
     return ticker
