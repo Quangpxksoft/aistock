@@ -654,7 +654,8 @@ def page_home():
                             model_file = f"models/tcn/tcn_model_{tk}.h5"
                             scaler_file = f"models/tcn/tcn_scaler_{tk}.pkl"
                             model_exists = os.path.exists(model_file) and os.path.exists(scaler_file)
-
+                        status_ph.info(f"⏳ Đang dự báo {tk}…, vui lòng chờ trong giây lát.")
+                        
                         # 👉 CHỈ HIỆN INFO KHI CHƯA CÓ MODEL
                         if not model_exists:
                             status_ph.info(f"⏳ Đang huấn luyện & dự báo {tk}…, thời gian phụ thuộc vào khối lượng dữ liệu của bạn.")

@@ -1,41 +1,51 @@
+
 # import psycopg
+# import os
 # import pandas as pd
 # from datetime import datetime, timedelta
-
-# from config import DATABASE_URL
-
+# from config import (
+#     DB_HOST,
+#     DB_NAME,
+#     DB_USER,
+#     DB_PASSWORD,
+#     DB_PORT
+# )
 
 # # =========================
-# # CONNECTION
+# # CONNECTION (SAFE + CLEAN)
 # # =========================
+# def get_connection():
+#     return psycopg.connect(
+#         host=DB_HOST,
+#         dbname=DB_NAME,
+#         user=DB_USER,
+#         password=DB_PASSWORD,
+#         port=DB_PORT,
+#         sslmode="require",
+#         sslrootcert=None,
+#         connect_timeout=10,
+#         keepalives=1,
+#         keepalives_idle=30,
+#         keepalives_interval=10,
+#         keepalives_count=5
+#     )
+# # =========================
+# # UTILS
+# # =========================
+
 # def to_date(x):
 #     return pd.to_datetime(x).date()
 
-# _conn = None
 
-# def get_connection():
-#     global _conn
-
-#     try:
-#         if _conn is None or _conn.closed:
-#             _conn = psycopg.connect(
-#                 DATABASE_URL,
-#                 sslmode="require",
-#                 connect_timeout=10
-#             )
-
-#         return _conn
-
-#     except Exception as e:
-#         print("DATABASE CONNECTION ERROR:", e)
-#         _conn = None   # 🔥 quan trọng: reset
-#         raise
 # # =========================
 # # INIT TABLE
 # # =========================
+
 # def init_table_if_not_exists(ticker: str):
+
 #     with get_connection() as conn:
 #         with conn.cursor() as c:
+
 #             c.execute(f"""
 #                 CREATE TABLE IF NOT EXISTS "{ticker}" (
 #                     Date DATE NOT NULL,
@@ -53,31 +63,31 @@
 #                     PRIMARY KEY (Date, Ticker)
 #                 )
 #             """)
+
 #         conn.commit()
 
 
 # # =========================
-# # LOAD DATA (FIX ROOT CAUSE)
+# # LOAD DATA
 # # =========================
-# def load_data(ticker: str) -> pd.DataFrame:
+
+# def load_data(ticker: str):
+
 #     try:
 #         query = f'SELECT * FROM "{ticker}"'
 
-#         df = pd.read_sql_query(query, DATABASE_URL)
+#         with get_connection() as conn:
+#             df = pd.read_sql_query(query, conn)
 
-#         # normalize lowercase
 #         df.columns = df.columns.str.lower()
 
-#         # không phải bảng stock -> bỏ
 #         if "date" not in df.columns:
 #             return pd.DataFrame()
 
-#         # sort sau khi xác nhận có date
 #         df["date"] = pd.to_datetime(df["date"], errors="coerce")
 #         df = df.dropna(subset=["date"])
-#         df = df.sort_values("date", ascending=True)
+#         df = df.sort_values("date")
 
-#         # map schema
 #         df = df.rename(columns={
 #             "date": "Date",
 #             "open": "Open",
@@ -98,9 +108,12 @@
 #     except Exception as e:
 #         print(f"[load_data] {ticker}: {e}")
 #         return pd.DataFrame()
+
+
 # # =========================
-# # INSERT / UPDATE DATA
+# # INSERT / UPDATE
 # # =========================
+
 # def insert_new_rows(ticker: str, df: pd.DataFrame):
 
 #     if df is None or df.empty:
@@ -110,9 +123,7 @@
 
 #     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 #     df = df.dropna(subset=["Date", "Close"])
-
 #     df["Date"] = df["Date"].dt.date
-
 #     df["Ticker"] = ticker
 
 #     cols = ["Date", "Open", "High", "Low", "Close", "Volume", "Ticker"]
@@ -135,13 +146,16 @@
 #     with get_connection() as conn:
 #         with conn.cursor() as c:
 #             c.executemany(sql, df.values.tolist())
+
 #         conn.commit()
 
 
 # # =========================
 # # LOAD FORECAST
 # # =========================
-# def load_forecast(ticker: str) -> pd.DataFrame:
+
+# def load_forecast(ticker: str):
+
 #     df = load_data(ticker)
 
 #     if df.empty:
@@ -164,7 +178,9 @@
 # # =========================
 # # LIST TABLES
 # # =========================
+
 # def list_tables():
+
 #     with get_connection() as conn:
 #         with conn.cursor() as c:
 
@@ -180,30 +196,34 @@
 
 #             for tb in tables:
 #                 try:
-#                     c.execute(f'''
+#                     c.execute("""
 #                         SELECT column_name
 #                         FROM information_schema.columns
 #                         WHERE table_name = %s
-#                     ''', (tb,))
+#                     """, (tb,))
 
 #                     cols = [x[0].lower() for x in c.fetchall()]
 
-#                     # chỉ nhận bảng stock thật sự
 #                     required = ["date", "open", "high", "low", "close", "ticker"]
 
 #                     if all(col in cols for col in required):
 #                         stock_tables.append(tb)
 
-#                 except Exception:
+#                 except:
 #                     pass
 
 #             return stock_tables
+
+
 # # =========================
 # # INSPECT TABLE
 # # =========================
+
 # def inspect_table(ticker: str):
+
 #     with get_connection() as conn:
 #         with conn.cursor() as c:
+
 #             c.execute("""
 #                 SELECT column_name, data_type
 #                 FROM information_schema.columns
@@ -216,8 +236,9 @@
 
 
 # # =========================
-# # SAVE FORECAST (FIXED LOGIC)
+# # SAVE FORECAST
 # # =========================
+
 # def save_forecast(ticker: str, df: pd.DataFrame):
 
 #     if df is None or df.empty:
@@ -225,7 +246,6 @@
 
 #     ticker = ticker.upper()
 
-#     # FORCE DATE TYPE ONCE
 #     df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
 #     df = df.dropna(subset=["Date"])
 
@@ -242,18 +262,15 @@
 
 #             for _, row in df.iterrows():
 
-#                 date_val = row["Date"]  # already datetime.date
+#                 date_val = row["Date"]
 
-#                 # CHECK EXISTING
 #                 c.execute(f"""
 #                     SELECT 1
 #                     FROM "{ticker}"
 #                     WHERE Date=%s AND Ticker=%s
 #                 """, (date_val, ticker))
 
-#                 existing = c.fetchone()
-
-#                 if existing is None:
+#                 if c.fetchone() is None:
 #                     c.execute(f"""
 #                         INSERT INTO "{ticker}"
 #                         (Date, Open, High, Low, Close, Volume,
@@ -274,7 +291,6 @@
 #                         row.get("Predicted_Volume"),
 #                         ticker
 #                     ))
-
 #                 else:
 #                     c.execute(f"""
 #                         UPDATE "{ticker}"
@@ -295,9 +311,12 @@
 #                     ))
 
 #         conn.commit()
+
+
 # # =========================
 # # SAVE BACKTEST
 # # =========================
+
 # def save_forecast_last(ticker: str, forecast_df: pd.DataFrame, days: int = 180):
 
 #     if forecast_df is None or forecast_df.empty:
@@ -305,9 +324,6 @@
 
 #     ticker = ticker.upper()
 
-#     # =========================
-#     # NORMALIZE DATE
-#     # =========================
 #     forecast_df = forecast_df.copy()
 #     forecast_df["Date"] = pd.to_datetime(forecast_df["Date"], errors="coerce")
 #     forecast_df = forecast_df.dropna(subset=["Date"])
@@ -323,7 +339,6 @@
 #     if forecast_df.empty:
 #         return
 
-#     # convert to python.date (DB-safe)
 #     forecast_df["Date"] = forecast_df["Date"].dt.date
 
 #     pred_cols = [c for c in forecast_df.columns if c.startswith("Predicted_")]
@@ -337,9 +352,6 @@
 
 #                 date_val = row.Date
 
-#                 # =========================
-#                 # CHECK EXISTING ROW
-#                 # =========================
 #                 c.execute(f"""
 #                     SELECT *
 #                     FROM "{ticker}"
@@ -352,11 +364,8 @@
 #                     continue
 
 #                 colnames = [desc.name for desc in c.description]
-
-#                 # FIXED: correct mapping
 #                 existing_map = dict(zip(colnames, existing))
 
-#                 # extract predictions safely
 #                 pred_values = {col: getattr(row, col) for col in pred_cols}
 
 #                 updates = {
@@ -366,13 +375,9 @@
 #                 }
 
 #                 if updates:
-
 #                     set_clause = ", ".join([f"{k}=%s" for k in updates.keys()])
 #                     values = list(updates.values()) + [date_val, ticker]
 
-#                     # =========================
-#                     # UPDATE
-#                     # =========================
 #                     c.execute(f"""
 #                         UPDATE "{ticker}"
 #                         SET {set_clause}
@@ -382,21 +387,27 @@
 #         conn.commit()
 
 import psycopg
+import os
 import pandas as pd
 from datetime import datetime, timedelta
-# from config import DATABASE_URL
-
+from config import (
+    DB_HOST,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
+    DB_PORT
+)
 
 # =========================
 # CONNECTION (SAFE + CLEAN)
 # =========================
 def get_connection():
     return psycopg.connect(
-        host="dpg-d84ql2n7f7vs73a9preg-a.singapore-postgres.render.com",
-        dbname="aistock",
-        user="aistock_user",
-        password="5NXGXFbcHRLntuWh6BsBqMwdY48G3KCj",
-        port=5432,
+        host=DB_HOST,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        port=DB_PORT,
         sslmode="require",
         sslrootcert=None,
         connect_timeout=10,
@@ -405,10 +416,10 @@ def get_connection():
         keepalives_interval=10,
         keepalives_count=5
     )
+
 # =========================
 # UTILS
 # =========================
-
 def to_date(x):
     return pd.to_datetime(x).date()
 
@@ -416,12 +427,10 @@ def to_date(x):
 # =========================
 # INIT TABLE
 # =========================
-
 def init_table_if_not_exists(ticker: str):
 
     with get_connection() as conn:
         with conn.cursor() as c:
-
             c.execute(f"""
                 CREATE TABLE IF NOT EXISTS "{ticker}" (
                     Date DATE NOT NULL,
@@ -439,14 +448,12 @@ def init_table_if_not_exists(ticker: str):
                     PRIMARY KEY (Date, Ticker)
                 )
             """)
-
         conn.commit()
 
 
 # =========================
 # LOAD DATA
 # =========================
-
 def load_data(ticker: str):
 
     try:
@@ -489,7 +496,6 @@ def load_data(ticker: str):
 # =========================
 # INSERT / UPDATE
 # =========================
-
 def insert_new_rows(ticker: str, df: pd.DataFrame):
 
     if df is None or df.empty:
@@ -521,15 +527,13 @@ def insert_new_rows(ticker: str, df: pd.DataFrame):
 
     with get_connection() as conn:
         with conn.cursor() as c:
-            c.executemany(sql, df.values.tolist())
-
+            c.executemany(sql, [tuple(x) for x in df.values.tolist()])
         conn.commit()
 
 
 # =========================
 # LOAD FORECAST
 # =========================
-
 def load_forecast(ticker: str):
 
     df = load_data(ticker)
@@ -554,7 +558,6 @@ def load_forecast(ticker: str):
 # =========================
 # LIST TABLES
 # =========================
-
 def list_tables():
 
     with get_connection() as conn:
@@ -594,7 +597,6 @@ def list_tables():
 # =========================
 # INSPECT TABLE
 # =========================
-
 def inspect_table(ticker: str):
 
     with get_connection() as conn:
@@ -614,7 +616,6 @@ def inspect_table(ticker: str):
 # =========================
 # SAVE FORECAST
 # =========================
-
 def save_forecast(ticker: str, df: pd.DataFrame):
 
     if df is None or df.empty:
@@ -692,7 +693,6 @@ def save_forecast(ticker: str, df: pd.DataFrame):
 # =========================
 # SAVE BACKTEST
 # =========================
-
 def save_forecast_last(ticker: str, forecast_df: pd.DataFrame, days: int = 180):
 
     if forecast_df is None or forecast_df.empty:

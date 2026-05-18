@@ -1,7 +1,6 @@
 import streamlit as st
 from utils.user_manager import register_user, login_user, upgrade_user
-import psycopg
-from config import DATABASE_URL
+from utils.db_manager import get_connection   # ✅ FIX: dùng đúng module của bạn
 
 
 # Quyền và lợi ích
@@ -15,33 +14,26 @@ FEATURES_INFO = {
     "report": ("🎯 Báo cáo", "Xuất báo cáo PDF tổng hợp bằng biểu đồ trực quan, nội dung chi tiết bao gồm: backtest, hiệu suất, dự báo tương lai từ 1-30 ngày, rủi ro, tối ưu hoá danh mục, tái cân bằng danh mục."),
 }
 
-# Role → các tính năng được phép
 ROLE_FEATURES = {
     "guest": [],
     "member": ["forecast", "risk", "backtest_perf"],
-    # "premium": ["forecast", "risk", "backtest_perf", "train", "optimize", "rebalance", "report"]
     "premium": ["forecast", "risk", "backtest_perf", "optimize", "rebalance", "report"]
 }
 
-# Giá
 ROLE_PRICES = {
-    # "member": 590_000,
-    # "premium": 790_000
     "member": 390_000,
     "premium": 490_000
 }
 
 DISCOUNTS = {
-    # 6: 0.7,   # 30% off
-    # 12: 0.5   # 50% off
-    6: 0.8,   # 20% off
-    12: 0.6   # 40% off
+    6: 0.8,
+    12: 0.6
 }
+
 
 def register_page():
     st.title("📝 Đăng ký / Nâng cấp tài khoản")
 
-    # ===== Chọn role & thời hạn =====
     role = st.selectbox("Chọn loại tài khoản", ["guest", "member", "premium"], key="register_role")
 
     if role in ROLE_FEATURES and ROLE_FEATURES[role]:
@@ -55,7 +47,6 @@ def register_page():
 
         duration_text = st.radio(
             "Chọn thời hạn thanh toán:",
-            # ["1 tháng", "6 tháng (giảm 30%)", "12 tháng (giảm 50%)"],
             ["1 tháng", "6 tháng (giảm 20%)", "12 tháng (giảm 40%)"],
             key="register_duration"
         )
@@ -77,7 +68,6 @@ def register_page():
         total_price = 0
         discount = 1.0
 
-    # ===== Form đăng ký =====
     with st.form("register_form"):
         full_name = st.text_input("Họ và tên *")
         username = st.text_input("Tên đăng nhập *")
@@ -87,71 +77,81 @@ def register_page():
         confirm_password = st.text_input("Xác nhận mật khẩu *", type="password")
 
         payment_method = payment_details = None
-        # if role in ["member", "premium"]:
-        #     st.subheader("💳 Thông tin thanh toán")
-        #     st.text_input("👤 Người nhận", value="Phạm Xuân Quang - Tài khoản: 42488888 - Ngân hàng thương mại cổ phàn Á Châu (ACB)", disabled=True)  # label cố định
-        #     payment_method = st.selectbox("Phương thức thanh toán", ["Thẻ tín dụng", "PayPal", "Ví điện tử"])
-        #     payment_details = st.text_input("Chi tiết thanh toán")
+
         if role in ["member", "premium"]:
             st.subheader("💳 Thông tin thanh toán")
+
             st.text_input(
                 "👤 Người nhận",
                 value="Phạm Xuân Quang - Tài khoản: 42488888 - Ngân hàng thương mại cổ phàn Á Châu (ACB)",
                 disabled=True
-            )  # label cố định
+            )
 
             payment_method = st.selectbox(
                 "Phương thức thanh toán",
                 ["Thẻ tín dụng", "PayPal", "Ví điện tử"]
             )
 
-            # Hiển thị gói đăng ký theo role, disable không cho sửa
             payment_details = st.text_input(
                 "Gói đăng ký",
                 value=f"Đăng ký {role.capitalize()}",
                 disabled=True
             )
 
-
         submit = st.form_submit_button("Đăng ký")
 
-    # ===== Xử lý đăng ký =====
     if submit:
         if not username or not password or not email:
             st.error("⚠️ Username, mật khẩu và email là bắt buộc.")
             return
+
         if password != confirm_password:
             st.error("⚠️ Mật khẩu nhập lại không khớp.")
             return
-        
-        # ✅ Kiểm tra email tồn tại chưa
-        conn = psycopg.connect(DATABASE_URL)
-        c = conn.cursor()
-        c.execute("SELECT id FROM users WHERE email=?", (email,))
-        existing_email = c.fetchone()
-        if existing_email:
-            st.error("⚠️ Email này đã được sử dụng. Vui lòng nhập email khác.")
-            conn.close()
-            return
-        # ✅ Kiểm tra username tồn tại chưa
-        c.execute("SELECT id FROM users WHERE username=?", (username,))
-        existing_username = c.fetchone()
-        conn.close()
-        if existing_username:
-            st.error("⚠️ Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.")
-            return
 
-        # Gọi user_manager để đăng ký
-        success, msg = register_user(full_name, username, phone_number, email, password, role)
+        # =========================
+        # FIX: USE db_manager
+        # =========================
+        with get_connection() as conn:
+            with conn.cursor() as c:
+
+                # check email
+                c.execute(
+                    "SELECT id FROM users WHERE email=%s",
+                    (email,)
+                )
+                if c.fetchone():
+                    st.error("⚠️ Email này đã được sử dụng. Vui lòng nhập email khác.")
+                    return
+
+                # check username
+                c.execute(
+                    "SELECT id FROM users WHERE username=%s",
+                    (username,)
+                )
+                if c.fetchone():
+                    st.error("⚠️ Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.")
+                    return
+
+        # =========================
+        # REGISTER
+        # =========================
+        success, msg = register_user(
+            full_name, username, phone_number, email, password, role
+        )
+
         if not success:
             st.error("❌ " + msg)
             return
 
         st.success("✅ " + msg)
 
-        # Nếu là member/premium → tạo subscription pending
+        # =========================
+        # SUBSCRIPTION
+        # =========================
         if role in ["member", "premium"]:
             user = login_user(username, password)
+
             if user:
                 upgrade_user(
                     user["id"],
@@ -166,7 +166,6 @@ def register_page():
         st.session_state["page"] = "login"
         st.rerun()
 
-    # ===== Quay lại login =====
     if st.button("⬅️ Quay lại đăng nhập"):
         st.session_state["page"] = "login"
         st.rerun()
