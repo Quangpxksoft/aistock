@@ -11,12 +11,24 @@ from config import DATABASE_URL
 def to_date(x):
     return pd.to_datetime(x).date()
 
+_conn = None
+
 def get_connection():
-    return psycopg.connect(
-    DATABASE_URL,
-    sslmode="require",
-    connect_timeout=10
-)
+    global _conn
+
+    try:
+        if _conn is None or _conn.closed:
+            _conn = psycopg.connect(
+                DATABASE_URL,
+                sslmode="require",
+                connect_timeout=10
+            )
+
+        return _conn
+
+    except Exception as e:
+        print("DATABASE CONNECTION ERROR:", e)
+        raise
 # =========================
 # INIT TABLE
 # =========================
