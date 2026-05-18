@@ -395,7 +395,8 @@ def get_connection():
     return psycopg.connect(
         DATABASE_URL,
         connect_timeout=10,
-        sslmode="require",
+        sslmode="verify-ca",
+        sslrootcert=os.path.expanduser("~/.postgresql/root.crt"),
         keepalives=1,
         keepalives_idle=30,
         keepalives_interval=10,
