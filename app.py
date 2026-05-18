@@ -120,6 +120,15 @@ st.set_page_config(
     page_icon="assets/logo.png",
     layout="wide"
 )
+def safe_init_db():
+    if not st.session_state.get("db_initialized", False):
+        try:
+            init_db()
+            st.session_state["db_initialized"] = True
+        except Exception as e:
+            st.error(f"DB init failed: {e}")
+
+
 
 # st.title("📈 Hệ thống đầu tư AIS‑Ksoft")
 # ========= Thư mục ==========================================================
@@ -130,9 +139,6 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 # # ================== KHỞI TẠO TRẠNG THÁI ==================
-if "db_initialized" not in st.session_state:
-    init_db()
-    st.session_state["db_initialized"] = True
 
 
 if "page" not in st.session_state:
