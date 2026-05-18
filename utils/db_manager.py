@@ -384,26 +384,27 @@
 import psycopg
 import pandas as pd
 from datetime import datetime, timedelta
-from config import DATABASE_URL
+# from config import DATABASE_URL
 
 
 # =========================
 # CONNECTION (SAFE + CLEAN)
 # =========================
-
 def get_connection():
     return psycopg.connect(
-        DATABASE_URL,
+        host="dpg-d84ql2n7f7vs73a9preg-a.singapore-postgres.render.com",
+        dbname="aistock",
+        user="aistock_user",
+        password="5NXGXFbcHRLntuWh6BsBqMwdY48G3KCj",
+        port=5432,
+        sslmode="require",
+        sslrootcert=None,
         connect_timeout=10,
-        sslmode="verify-ca",
-        sslrootcert=os.path.expanduser("~/.postgresql/root.crt"),
         keepalives=1,
         keepalives_idle=30,
         keepalives_interval=10,
         keepalives_count=5
     )
-
-
 # =========================
 # UTILS
 # =========================
