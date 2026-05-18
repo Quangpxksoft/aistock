@@ -478,7 +478,7 @@ def init_db():
         ))
 
     conn.commit()
-    conn.close()
+    # conn.close()
 
     print("🎯 Database initialized.")
 
@@ -552,8 +552,8 @@ def register_user(full_name, username, phone_number, email, password,
         return True, "Đăng ký thành công! Vui lòng chờ kích hoạt nếu bạn chọn gói trả phí."
 
     finally:
-        conn.close()
-
+        # conn.close()
+        pass
 
 # =========================
 # LOGIN USER
@@ -570,7 +570,7 @@ def login_user(username, password):
     """, (username,))
 
     user = c.fetchone()
-    conn.close()
+    # conn.close()
 
     if user:
 
@@ -609,7 +609,7 @@ def get_role_by_username(username):
     )
 
     row = c.fetchone()
-    conn.close()
+    # conn.close()
 
     return row[0] if row else "guest"
 
