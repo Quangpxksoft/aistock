@@ -25,9 +25,11 @@ def train_tcn_model(df, ticker, look_back=60, epochs=10, batch_size=16):
         raise ValueError(f"⚠️ Dữ liệu không hợp lệ: thiếu {required_cols}")
 
     # Chuẩn hoá dữ liệu
+    # scaler = MinMaxScaler()
+    # scaled_data = scaler.fit_transform(df[required_cols])
+    # scaler.feature_names_in_ = required_cols  # lưu lại để dùng khi dự báo
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[required_cols])
-    scaler.feature_names_in_ = required_cols  # lưu lại để dùng khi dự báo
 
     # Chuẩn bị X, y
     X, y = [], []
@@ -76,8 +78,9 @@ def load_tcn_model(ticker):
         with open(scaler_path, "rb") as f:
             scaler = pickle.load(f)
 
-        if not hasattr(scaler, "feature_names_in_"):
-            raise AttributeError("⚠️ Scaler không có feature_names_in_. Vui lòng train lại TCN.")
+        # if not hasattr(scaler, "feature_names_in_"):
+        #     raise AttributeError("⚠️ Scaler không có feature_names_in_. Vui lòng train lại TCN.")
+        required_cols = ["Open", "High", "Low", "Close", "Volume"]
 
         print(f"✅ Đã tải TCN model + scaler cho {ticker}")
         return model, scaler
@@ -94,17 +97,19 @@ def predict_tcn(df, model, scaler, ticker, n_days=7, look_back=60):
     Dự báo n_days tiếp theo cho OHLCV bằng TCN.
     Multi-output (OHLCV), autoregressive loop giống LSTM.
     """
-    if hasattr(scaler, "feature_names_in_"):
-        required_cols = list(scaler.feature_names_in_)
-    else:
-        raise ValueError("⚠️ Không xác định được các cột scaler đã fit. Vui lòng train lại TCN.")
+    # if hasattr(scaler, "feature_names_in_"):
+    #     required_cols = list(scaler.feature_names_in_)
+    # else:
+    #     raise ValueError("⚠️ Không xác định được các cột scaler đã fit. Vui lòng train lại TCN.")
+    required_cols = ["Open", "High", "Low", "Close", "Volume"]
 
     df_clean = df[required_cols].dropna()
     if df_clean.shape[0] < look_back:
         raise ValueError(f"⚠️ Không đủ dữ liệu để dự báo. Cần ít nhất {look_back} dòng dữ liệu.")
 
-    data = df_clean.values
-    data_scaled = scaler.transform(data)
+    # data = df_clean.values
+    # data_scaled = scaler.transform(data)
+    data_scaled = scaler.transform(df_clean[required_cols])
 
     predictions = []
     last_sequence = data_scaled[-look_back:].copy()

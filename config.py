@@ -13,7 +13,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # FOLDERS
 # =========================
 
-DATABASE_DIR = os.path.join(BASE_DIR, "database")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 REPORT_DIR = os.path.join(BASE_DIR, "reports")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -25,7 +24,6 @@ LOG_DIR = os.path.join(BASE_DIR, "logs")
 
 def ensure_dirs():
     """Tạo toàn bộ thư mục cần thiết (chỉ gọi khi app start)."""
-    os.makedirs(DATABASE_DIR, exist_ok=True)
     os.makedirs(MODEL_DIR, exist_ok=True)
     os.makedirs(REPORT_DIR, exist_ok=True)
     os.makedirs(LOG_DIR, exist_ok=True)

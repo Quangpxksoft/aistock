@@ -62,8 +62,6 @@ def get_connection():
 # UTILS
 # =========================
 
-
-
 def safe_ticker(ticker: str) -> str:
     ticker = ticker.upper().strip()
 

@@ -48,7 +48,9 @@ def train_lstm_model(df, ticker, epochs=10, batch_size=16, look_back=60):
     # Chuẩn hoá dữ liệu (5 cột) và lưu tên cột cho scaler
     scaler = MinMaxScaler()
     scaled_data = scaler.fit_transform(df[required_cols])
-    scaler.feature_names_in_ = required_cols  # Thêm dòng này
+    # scaler.feature_names_in_ = required_cols  # Thêm dòng này
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(df[required_cols])
 
     # Tạo dữ liệu huấn luyện
     X, y = [], []
@@ -141,7 +143,13 @@ def predict_lstm(df, model, scaler, ticker, n_days=7, look_back=60):
     if df_clean.shape[0] < look_back:
         raise ValueError(f"⚠️ Không đủ dữ liệu để dự báo. Cần ít nhất {look_back} dòng dữ liệu.")
 
-    data = df_clean.values
+    if hasattr(scaler, "feature_names_in_"):
+        if list(df_clean.columns) != list(scaler.feature_names_in_):
+            raise ValueError("Feature mismatch giữa train và predict")
+
+    # data = df_clean.values
+    # data_scaled = scaler.transform(data)
+    data = df_clean[required_cols]
     data_scaled = scaler.transform(data)
 
     predictions = []

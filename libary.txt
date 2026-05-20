@@ -2,6 +2,10 @@ xcode-select --install
 brew install cmake
 pip install pyarrow --prefer-binary
 
+https://dashboard.render.com
+
+https://github.com/
+
 
 
 

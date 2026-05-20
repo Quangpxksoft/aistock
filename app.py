@@ -21,8 +21,7 @@ from pathlib import Path
 from typing import Dict, List
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-
-
+from io import StringIO
 import pandas as pd
 import altair as alt
 import plotly.express as px
@@ -30,7 +29,6 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 from utils.chatbot import chatbot_answer
-
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
@@ -47,18 +45,12 @@ import utils.db_manager as db
 
 from utils import db_manager
 from utils.data_cleaner import clean_dataframe
-
 from utils.db_manager import load_data, save_forecast, get_connection, load_forecast, list_tables, save_forecast_last
-
-
-
 from utils.user_history import record_user_ticker_view
-
 from utils.user_manager import init_db, login_user, register_user
 from config import DATABASE_URL
 from register_page import register_page
 from utils.user_manager import get_role_by_username
-
 from utils.reporting import (
     get_all_tickers_in_reports_custom,
     generate_pdf_filename,
@@ -74,9 +66,6 @@ from utils.email_sender import send_report_via_email
 from utils.batch_utils import process_batch
 
 # Forecasting & Modeling
-
-from utils.arima_model import load_arima_model, train_arima, forecast_arima
-from utils.prophet_model import load_prophet_model, train_prophet, forecast_prophet
 from utils.lstm_model import load_lstm_model, train_lstm_model, predict_lstm
 from utils.tcn_model import load_tcn_model, train_tcn_model, predict_tcn
 
@@ -257,7 +246,12 @@ def format_date(x):
     Định dạng ngày: datetime hoặc string -> 'dd/mm/yyyy'
     """
     try:
-        x = pd.to_datetime(x, errors="coerce")
+        # x = pd.to_datetime(x, errors="coerce")
+        x = pd.to_datetime(
+            x,
+            dayfirst=True,
+            errors="coerce"
+        )
         if pd.isna(x):
             return ""
         return x.strftime("%d/%m/%Y")
@@ -565,8 +559,8 @@ def page_home():
                     @st.cache_resource(show_spinner=False)
                     def cached_forecast(choice, df_json, n_days, mdl_name):
                         import traceback
-                        # df = pd.read_json(df_json)
-                        df = pd.read_json(df_json, orient="records")
+                        # df = pd.read_json(df_json, orient="records")
+                        df = pd.read_json(StringIO(df_json), orient="records")
 
                         try:
                             
@@ -657,7 +651,7 @@ def page_home():
 
                         if model_exists:
                             status_ph.info(
-                                f"⏳ Đang dự báo {tk}…, vui lòng chờ trong giây lát."
+                                f"⏳ Đang dự báo mã {tk}…, vui lòng chờ trong giây lát."
                             )
                         else:
                             status_ph.info(
@@ -754,7 +748,8 @@ def page_home():
                                     xaxis_title="Ngày",
                                     yaxis_title="Giá đóng cửa"
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                # st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width="stretch")
 
                             except Exception as e:
                                 st.error(f"⚠️ Lỗi khi vẽ biểu đồ Plotly dự báo cho {tk}: {e}")
@@ -794,7 +789,8 @@ def page_home():
                         
 
                                 # Hiển thị bảng (đã format)
-                                st.dataframe(display_df, use_container_width=True)
+                                # st.dataframe(display_df, use_container_width=True)
+                                st.dataframe(display_df, width="stretch")
 
 
                             else:
@@ -848,15 +844,31 @@ def page_home():
                                     )
                                 )
 
-                                st.plotly_chart(fig2, use_container_width=True)
+                                # st.plotly_chart(fig2, use_container_width=True)
+                                st.plotly_chart(fig2, width="stretch")
 
                             except Exception as e:
                                 st.error(f"⚠️ Lỗi khi vẽ biểu đồ Plotly cho {tk}: {e}")
 
-                    if processed:
-                        status_ph.success("✅ Hoàn thành dự báo cho: " + ", ".join(processed))
-                    elif not failed_tickers:
-                        status_ph.warning("⚠️ Không có mã nào được dự báo.")
+                    # if processed:
+                    #     status_ph.success("✅ Hoàn thành dự báo cho: " + ", ".join(processed))
+                    # elif not failed_tickers:
+                    #     status_ph.warning("⚠️ Không có mã nào được dự báo.")
+                    import time
+
+                    total_tickers = len(valid_tickers)
+
+                    if (len(processed) + len(failed_tickers)) == total_tickers:
+                        if processed:
+                            status_ph.success(
+                                "✅ Hoàn thành dự báo cho: " + ", ".join(processed)
+                            )
+                        elif failed_tickers:
+                            status_ph.warning("⚠️ Không có mã nào được dự báo.")
+
+                        # clear ngay sau render (không delay UI)
+                        time.sleep(3)
+                        status_ph.empty()
 
                     if failed_tickers:
                         invalid_tickers = set(st.session_state.get("invalid_tickers", []))
@@ -1058,7 +1070,8 @@ def page_home():
                                     "Khối lượng dự báo",
                                     "Thống kê khối lượng"
                                 ]],
-                                use_container_width=True  # ⚡ bổ sung tham số tại đây
+                                # use_container_width=True  # ⚡ bổ sung tham số tại đây
+                                width="stretch"  # ⚡ bổ sung tham số tại đây
                             )
 
                             # -----------------------------
@@ -1176,7 +1189,8 @@ def page_home():
                             forecast_days = st.session_state.get("forecast_days_slider", 7)
 
                             # Hiển thị bảng
-                            st.dataframe(df_forecast, use_container_width=True)
+                            # st.dataframe(df_forecast, use_container_width=True)
+                            st.dataframe(df_forecast, width="stretch")
 
                             # Biểu đồ plotly
                             try:
@@ -1210,7 +1224,8 @@ def page_home():
                                     height=400
                                 )
 
-                                st.plotly_chart(fig, use_container_width=True)
+                                # st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width="stretch")
 
                                 # ====== Tóm tắt hành vi ======
                                 summary = df_forecast["Hành vi NĐT"].value_counts()
@@ -1298,10 +1313,12 @@ def page_home():
                                         return "color: gray; font-weight: bold;"
                                     return ""
 
-                                styled_df = df_display.style.applymap(highlight_trend, subset=["Xu hướng"])
+                                # styled_df = df_display.style.applymap(highlight_trend, subset=["Xu hướng"])
+                                styled_df = df_display.style.map(highlight_trend, subset=["Xu hướng"])
 
                                 with st.expander(f"📊 Khớp lệnh thực tế của {ticker} (tham khảo)"):
-                                    st.dataframe(styled_df, use_container_width=True, height=forecast_days * 40)
+                                    # st.dataframe(styled_df, use_container_width=True, height=forecast_days * 40)
+                                    st.dataframe(styled_df, width="stretch", height=forecast_days * 40)
 
                                     # ===== Biểu đồ =====
                                     try:
@@ -1340,7 +1357,8 @@ def page_home():
                                             title=f"📈 Xu hướng giá & SMA ({forecast_days} kỳ) - {ticker}"
                                         )
 
-                                        st.altair_chart(chart, use_container_width=True)
+                                        # st.altair_chart(chart, use_container_width=True)
+                                        st.altair_chart(chart, width="stretch")
                                     except Exception as e:
                                         st.error(f"⚠️ Lỗi khi vẽ biểu đồ cho {ticker}: {e}")
 
@@ -1382,7 +1400,8 @@ def page_home():
                         with st.expander(f"📉 Phân tích rủi ro theo mã - {tk}"):
                             st.plotly_chart(
                                 px.bar(df, x="Metric", y="Value", text_auto=True),
-                                use_container_width=True
+                                # use_container_width=True
+                                width="stretch"
                             )
                             st.dataframe(df)
 
@@ -1502,7 +1521,8 @@ def page_home():
                             # --- Hiển thị bảng hành vi ---
                             st.subheader("📈 Hành vi nhà đầu tư")
                             display_cols = ["Ngày","Open","High","Low","Close","Volume","PO","PH","PL","PC","PV","Độ biến động","Tín hiệu xu hướng"]
-                            st.dataframe(df[display_cols], use_container_width=True)
+                            # st.dataframe(df[display_cols], use_container_width=True)
+                            st.dataframe(df[display_cols], width="stretch")
 
                             # --- Biểu đồ hành vi (Volume + Tín hiệu xu hướng) ---
                             try:
@@ -1534,7 +1554,8 @@ def page_home():
                                     yaxis_title="Giá trị",
                                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                # st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width="stretch")
                             except Exception as e:
                                 st.error(f"Lỗi vẽ biểu đồ hành vi: {e}")
 
@@ -1560,7 +1581,8 @@ def page_home():
 
                                 st.subheader("📉 Backtest dự báo")
                                 st.markdown(f"- **MAE**: {format_currency(mae)}  \n- **RMSE**: {format_currency(rmse)}  \n- **MAPE**: {mape:.2f} %")
-                                st.dataframe(df_bt[["Ngày","Giá thực tế","Giá dự báo","Sai số","Sai số %"]], use_container_width=True)
+                                # st.dataframe(df_bt[["Ngày","Giá thực tế","Giá dự báo","Sai số","Sai số %"]], use_container_width=True)
+                                st.dataframe(df_bt[["Ngày","Giá thực tế","Giá dự báo","Sai số","Sai số %"]], width="stretch")
 
                                 fig2 = go.Figure()
                                 fig2.add_trace(go.Scatter(x=df_bt["Date"], y=df_bt["Close"], mode="lines+markers", name="Giá thực tế"))
@@ -1568,7 +1590,8 @@ def page_home():
                                 fig2.add_trace(go.Bar(x=df_bt["Date"], y=df_bt["PC"] - df_bt["Close"], name="Sai số", opacity=0.4))
                                 fig2.update_layout(title=f"So sánh giá thực tế vs giá dự báo – {tk}",
                                                 xaxis_title="Ngày", yaxis_title="Giá")
-                                st.plotly_chart(fig2, use_container_width=True)
+                                # st.plotly_chart(fig2, use_container_width=True)
+                                st.plotly_chart(fig2, width="stretch")
                             else:
                                 st.warning("⚠️ Không có đủ dữ liệu để backtest.")
 
@@ -1714,8 +1737,10 @@ def page_home():
                             fig.update_layout(hovermode="x unified")
 
                             with st.expander(f"📈 {t} ({strategy}) - Portfolio Value", expanded=False):
-                                st.plotly_chart(fig, use_container_width=True)
-                                st.dataframe(df_display, use_container_width=True)
+                                # st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, width="stretch")
+                                # st.dataframe(df_display, use_container_width=True)
+                                st.dataframe(df_display, width="stretch")
 
                     # === NÚT CHẠY BACKTEST THỦ CÔNG (ĐƯA XUỐNG DƯỚI EXPANDER) ===
                     if st.button("🧪 Chạy lại Backtest", help="Thực hiện kiểm tra hiệu suất trên các chiến lược đã chọn"):
@@ -1798,7 +1823,8 @@ def page_home():
                             ascending = st.checkbox("⬆️ Sắp xếp tăng dần", value=False)
                             table_df = table_df.sort_values(by=sort_metric, ascending=ascending)
 
-                        st.dataframe(table_df, use_container_width=True)
+                        # st.dataframe(table_df, use_container_width=True)
+                        st.dataframe(table_df, width="stretch")
                         st.caption("📌 Lọc theo hiệu suất và dữ liệu gần nhất")
 
 
@@ -1943,7 +1969,8 @@ def page_home():
                     )
                     fig.update_traces(textinfo="label+percent", hovertemplate="%{label}: %{percent}")
                     fig.update_layout(legend_title_text="Mã cổ phiếu")
-                    st.plotly_chart(fig, use_container_width=True)
+                    # st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
                     # 🔹 Nhập tổng vốn
                     
@@ -1992,14 +2019,10 @@ def page_home():
                         for x, orig in zip(numeric_vals, alloc_display["Độ biến động"])
                     ]
 
-
-
                     st.dataframe(alloc_display)
                     
-                    # st.dataframe(alloc_display, use_container_width=True)
                     st.caption("💡 Đơn vị vốn phân bổ = đơn vị của Tổng vốn nhập vào")
                     
-
                     # --- Bảng phân bổ nâng cao ---
                     st.markdown("### ⚖️ Phân bổ nâng cao theo rủi ro")
                     vols, missing_vols = [], []
@@ -2044,7 +2067,7 @@ def page_home():
                         adj_display["Lợi nhuận kỳ vọng"] = (adj_display["Lợi nhuận kỳ vọng"] * 100).round(2).astype(str) + " %"
 
                         st.dataframe(adj_display)
-                        # st.dataframe(adj_display, use_container_width=True)
+                        
                         st.caption("💡 Đơn vị vốn phân bổ điều chỉnh = đơn vị của Tổng vốn nhập vào")
                         st.caption("💡 Lợi nhuận kỳ vọng tính theo 1 năm, dựa trên log return hàng ngày và annualized.")
                     else:
@@ -2209,7 +2232,8 @@ def page_home():
                 # --- Hiển thị ---
                 st.markdown("### 📊 Bảng gợi ý tỷ trọng mục tiêu (theo hiệu suất 1 tháng gần nhất)")
                 st.caption("Hệ thống sử dụng hiệu suất 1 tháng gần nhất để đưa ra tỷ trọng gợi ý cho các mã.")
-                st.dataframe(df_suggested, use_container_width=True)
+                # st.dataframe(df_suggested, use_container_width=True)
+                st.dataframe(df_suggested, width="stretch")
 
 
                 # --- Nhập tỷ trọng mục tiêu ---
@@ -2279,13 +2303,15 @@ def page_home():
                     st.markdown("#### Trước khi tái cân bằng")
                     st.caption("Tỷ trọng hiện tại dựa trên giá trị thị trường.")
                     fig1 = px.pie(names=current_weights.keys(), values=current_weights.values(), title="Tỷ trọng hiện tại")
-                    st.plotly_chart(fig1, use_container_width=True)
+                    # st.plotly_chart(fig1, use_container_width=True)
+                    st.plotly_chart(fig1, width="stretch")
 
                 with col2:
                     st.markdown("#### Sau khi tái cân bằng")
                     st.caption("Tỷ trọng mong muốn theo mục tiêu đã nhập.")
                     fig2 = px.pie(names=target_weights.keys(), values=target_weights.values(), title="Tỷ trọng mục tiêu")
-                    st.plotly_chart(fig2, use_container_width=True)
+                    # st.plotly_chart(fig2, use_container_width=True)
+                    st.plotly_chart(fig2, width="stretch")
 
                 # Lưu lại dữ liệu phục vụ báo cáo
                 
@@ -2422,9 +2448,11 @@ def page_home():
                 return None, None
             available_cols = list(scaler.feature_names_in_)
 
-            data_vals = df_train[available_cols].values
-            scaled = scaler.transform(data_vals)
+            # data_vals = df_train[available_cols].values
+            # scaled = scaler.transform(data_vals)
 
+            data_vals = df_train[available_cols].to_numpy()
+            scaled = scaler.transform(data_vals)
             if len(scaled) <= lookback:
                 return None, None
 
@@ -2470,7 +2498,9 @@ def page_home():
                 return None, None
             available_cols = list(scaler.feature_names_in_)
 
-            data_vals = df_train[available_cols].values
+            # data_vals = df_train[available_cols].values
+            # scaled = scaler.transform(data_vals)
+            data_vals = df_train[available_cols].to_numpy()
             scaled = scaler.transform(data_vals)
 
             if len(scaled) <= lookback:
@@ -3235,7 +3265,8 @@ def page_home():
                             # Hiển thị log trong Streamlit
                             # -------------------
                             st.subheader("📊 Kết quả huấn luyện (log)")
-                            st.dataframe(pd.DataFrame(logs), use_container_width=True)
+                            # st.dataframe(pd.DataFrame(logs), use_container_width=True)
+                            st.dataframe(pd.DataFrame(logs), width="stretch")
 
                 # -------------------------
                 # TAB 3: Quản lý & huấn luyện tự động
@@ -3355,7 +3386,8 @@ def page_home():
                                     logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
 
                         st.subheader("📊 Kết quả tự động huấn luyện")
-                        st.dataframe(pd.DataFrame(logs), use_container_width=True)
+                        # st.dataframe(pd.DataFrame(logs), use_container_width=True)
+                        st.dataframe(pd.DataFrame(logs), width="stretch")
 
                     # auto_train on-open behavior
                     
@@ -3450,10 +3482,12 @@ def page_home():
                                 auto_logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
 
                         st.subheader("📊 Kết quả tự động huấn luyện")
-                        st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
+                        # st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
+                        st.dataframe(pd.DataFrame(auto_logs), width="stretch")
 
                         st.subheader("📊 Kết quả tự động huấn luyện (on-open)")
-                        st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
+                        # st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
+                        st.dataframe(pd.DataFrame(auto_logs), width="stretch")
 
                 
         # ---------------------------------------------------------------------------
@@ -3488,7 +3522,7 @@ def page_home():
 
                     col1, col2 = st.columns(2)
                     with col1:
-                        include_forecast = st.checkbox("📈 Dự đoán tương lai", value=select_all, key="include_forecast")
+                        include_forecast = st.checkbox("📈 Dự báo chi tiết", value=select_all, key="include_forecast")
                         include_backtest = st.checkbox("📊 Backtest", value=True if select_all else False, key="include_backtest")
                         include_perf = st.checkbox("📈 Hiệu suất", value=select_all, key="include_perf")
 
