@@ -489,7 +489,7 @@ def train_lstm_model(df: pd.DataFrame, ticker: str,
         epochs=epochs,
         batch_size=batch_size,
         shuffle=False,
-        verbose=1,
+        verbose=0,
         callbacks=[early_stop, reduce_lr]
     )
 
