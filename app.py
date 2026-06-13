@@ -363,50 +363,10 @@ def page_home():
             "Vui lòng nhấn 📊 Phân tích & dự báo để tải lại dữ liệu."
         )
     st.session_state["data_source_prev"] = data_source
-    # # ✅ Nhập danh sách ticker
-    # tickers_input = st.sidebar.text_input(
-    #     "Nhập ticker (cách bởi dấu phẩy)",
-    #     "TCB,VGI" if data_source == "vnstock" else "VIC.VN,FPT.VN,ACB.VN,HPG.VN",
-    #     help=(
-    #         "Ví dụ: SHB, ACB, VIC (vnstock dùng mã thuần, không có .VN)"
-    #         if data_source == "vnstock" else
-    #         "Ví dụ: SHB.VN, ACB.VN, VIC.VN (Yahoo Finance dùng suffix .VN)"
-    #     ),
-    #     key="tickers_input"
-    # )
-    
-    # ✅ Gợi ý nhóm mã — chỉ hiện khi dùng vnstock
-    if data_source == "vnstock":
-        try:
-            from vnstock import Listing
-            _listing = Listing()
-            _vn30  = ",".join(_listing.symbols_by_group("VN30").tolist())
-            _vn100 = ",".join(_listing.symbols_by_group("VN100").tolist())
-        except Exception:
-            _vn30  = "ACB,BID,CTG,FPT,GAS,HPG,MBB,MSN,MWG,PLX,SAB,SHB,SSI,STB,TCB,VCB,VHM,VIC,VJC,VNM,VPB,VRE"
-            _vn100 = _vn30
-
-        _group = st.sidebar.selectbox(
-            "💡 Gợi ý nhóm mã:",
-            ["-- Tự nhập --", "VN30", "VN100"],
-            index=0,
-            key="ticker_group"
-        )
-        if _group == "VN30":
-            _suggested = _vn30
-        elif _group == "VN100":
-            _suggested = _vn100
-        else:
-            _suggested = "VIC,FPT"
-    else:
-        _group     = "-- Tự nhập --"
-        _suggested = "VIC.VN,FPT.VN"
-
-
     # ✅ Nhập danh sách ticker
     tickers_input = st.sidebar.text_input(
         "Nhập ticker (cách bởi dấu phẩy)",
-        _suggested,
+        "TCB,VGI" if data_source == "vnstock" else "VIC.VN,FPT.VN,ACB.VN,HPG.VN",
         help=(
             "Ví dụ: SHB, ACB, VIC (vnstock dùng mã thuần, không có .VN)"
             if data_source == "vnstock" else
@@ -414,7 +374,6 @@ def page_home():
         ),
         key="tickers_input"
     )
-    st.session_state["tickers_input_val"] = tickers_input
 
     # Ép input sang chữ hoa ngay khi nhập
     tickers_input = tickers_input.upper()
@@ -422,8 +381,8 @@ def page_home():
     # ✅ Tách danh sách ticker
     tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
 
-    # ✅ Auto-strip suffix .VN/.HM/.HNX khi dùng VNSTOCK
-    # Vì API VNSTOCK chỉ nhận mã thuần: VIC, FPT — không nhận VIC.VN, FPT.VN
+    # ✅ Auto-strip suffix .VN/.HM/.HNX khi dùng VNDIRECT
+    # Vì API VNDIRECT chỉ nhận mã thuần: VIC, FPT — không nhận VIC.VN, FPT.VN
     if data_source in ("vnd", "vnstock"):
         tickers = [
             t.replace(".VN", "").replace(".HM", "").replace(".HNX", "")
@@ -432,6 +391,8 @@ def page_home():
 
     st.session_state["tickers"] = tickers
     # ============
+    
+    
     
     # ---- Date range ------------------------------------------------------------
     date_cols  = st.sidebar.columns(2)
