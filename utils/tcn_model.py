@@ -17,7 +17,7 @@ random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 tf.keras.utils.set_random_seed(SEED)
-tf.config.experimental.enable_op_determinism()
+# tf.config.experimental.enable_op_determinism()
 
 # -------------------------------
 # 📂 Thư mục lưu TCN models
@@ -389,6 +389,7 @@ def train_tcn_model(df: pd.DataFrame, ticker: str,
     -------
     (model, scaler_bundle)
     """
+    tf.config.experimental.enable_op_determinism()  # ← chuyển vào đây
     tf.keras.backend.clear_session()
 
     _validate_df(df)

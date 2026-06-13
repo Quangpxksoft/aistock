@@ -16,7 +16,7 @@ random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 tf.keras.utils.set_random_seed(SEED)
-tf.config.experimental.enable_op_determinism()
+# tf.config.experimental.enable_op_determinism()
 
 # -------------------------------
 # Aliases — khai báo 1 lần
@@ -426,6 +426,7 @@ def train_lstm_model(df: pd.DataFrame, ticker: str,
     -------
     (model, scaler_bundle)
     """
+    tf.config.experimental.enable_op_determinism()  # ← chuyển vào đây
     tf.keras.backend.clear_session()
 
     _validate_df(df)
