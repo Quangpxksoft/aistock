@@ -2,9 +2,7 @@
 # =================================================================
 # app.py – AIS-Analysis Investment Stock - Ksoft Software Soluttion
 # =================================================================
-
 from __future__ import annotations
-
 import os
 import gc
 import smtplib
@@ -14,12 +12,9 @@ import shutil
 import time
 import traceback
 import numpy as np
-import threading
 from datetime import datetime, date, timedelta
 from email.message import EmailMessage
-from pathlib import Path
 from typing import Dict, List
-import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from io import StringIO
 import pandas as pd
@@ -27,22 +22,18 @@ import altair as alt
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import yfinance as yf
 from utils.chatbot import chatbot_answer
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense, Input
 from tensorflow.keras.callbacks import EarlyStopping
 
 # ------------------- Local imports -------------------
 
 # Utilities and modules
 from utils.permissions import ROLE_PERMISSIONS, get_permissions, can_access, get_permissions_by_username, get_permissions_by_role
-
-from utils.reporting import export_report_pdf, safe_open_pdf
 import utils.db_manager as db
-
 from utils import db_manager
 from utils.data_cleaner import clean_dataframe
 from utils.db_manager import load_data, save_forecast, get_connection, load_forecast, list_tables, save_forecast_last
@@ -57,21 +48,14 @@ from utils.reporting import (
     export_report_pdf,
     safe_open_pdf,
 )
-from utils.user_manager import upgrade_user
-from utils.permissions import get_permissions
 from utils.admin_activate_page import admin_activate_page
-
-
 from utils.email_sender import send_report_via_email
 from utils.batch_utils import process_batch
 
 # Forecasting & Modeling
 from utils.lstm_model import load_lstm_model, train_lstm_model, predict_lstm
 from utils.tcn_model import load_tcn_model, train_tcn_model, predict_tcn
-
-
 # Data loading and processing (Note: duplicate imports merged)
-
 from utils.data_loader import load_data as load_data_dl
 
 
@@ -82,6 +66,7 @@ cutoff = today - timedelta(days=180)
 # Pages (Streamlit UI)
 sys.path.append(os.path.dirname(__file__))
 from login_page import login_page
+from utils.upgrade_page import upgrade_page
 
 # ---- local utils -----------------------------------------------------------
 from utils import (
@@ -114,7 +99,6 @@ def safe_init_db():
             st.session_state["db_initialized"] = True
         except Exception as e:
             st.error(f"DB init failed: {e}")
-
 
 
 # st.title("📈 Hệ thống đầu tư AIS‑Ksoft")
@@ -196,6 +180,9 @@ def init_session_keys():
         "enter_home": False,
         "batch_size": 20,
         "mem_safe": True,
+        "data_source": "vnstock",          
+        "data_source_prev": None,
+        "chat_messages": [],     
     }
 
     for k, v in defaults.items():
@@ -203,10 +190,12 @@ def init_session_keys():
             st.session_state[k] = v
 
     if "from_date" not in st.session_state:
-        st.session_state["from_date"] = date(2023, 1, 1)
+        st.session_state["from_date"] = date(2025, 1, 1)
 
     if "to_date" not in st.session_state:
         st.session_state["to_date"] = date.today()
+
+    safe_init_db()
 # -------------------- HÀM ĐỊNH DẠNG TIỀN NGUYÊN --------------------
 def format_currency(x):
     """
@@ -262,44 +251,33 @@ def format_date(x):
 # ========= Helper: tải dữ liệu một ticker ===================================
 
 # Biến toàn cục giữ tất cả DataFrame đã tải
-_download_frames: list[pd.DataFrame] = []
-def _download_one(ticker: str, from_date, to_date, source="yf") -> bool:
+
+def _download_one(ticker: str, from_date, to_date, frames: list, source="vnstock") -> bool:
     try:
-        # Load dữ liệu từ data_loader
         df = load_data_dl(ticker, start_date=from_date, end_date=to_date, source=source)
         if df.empty:
             return False
-        # Append vào frame toàn cục
-        _download_frames.append(df)
-        # Lưu vào DB
+        frames.append(df)
         db.insert_new_rows(ticker, df)
-        # Cập nhật session_state last_update nếu có Streamlit
-        
         return True
     except Exception:
         return False
 
-
-
 # ===== Download batch =====
 
-def run_download(target_list, from_date, to_date):
-    """Tải dữ liệu cho danh sách tickers và cập nhật session_state."""
+def run_download(target_list, from_date, to_date, source="vnstock"):
     loaded, failed = [], []
+    _download_frames = []
 
     if not target_list:
         st.warning("⚠️ Không có tickers để tải!")
         return
 
-    # Reset _download_frames trước mỗi lần download thủ công
-    global _download_frames
-    _download_frames = []
-
     for i in range(0, len(target_list),
                    BATCH_SIZE if MEM_SAFE_MODE else len(target_list)):
         batch = target_list[i : i + (BATCH_SIZE if MEM_SAFE_MODE else len(target_list))]
         for tk in batch:
-            ok = _download_one(tk, from_date, to_date)  # Truyền từ ngày đến ngày vào _download_one
+            ok = _download_one(tk, from_date, to_date, frames=_download_frames, source=source)
             (loaded if ok else failed).append(tk)
 
         gc.collect()
@@ -309,18 +287,15 @@ def run_download(target_list, from_date, to_date):
     # —— Thông báo gọn —— 
     if loaded:
         show_notification(
-            st.session_state.get("load_msg", "Đã tải dữ liệu"),
+            st.session_state.get("load_msg"),
             "success",
             "✅ Đã tải dữ liệu: " + ", ".join(loaded)
         )
     if failed:
         show_notification(
-            st.session_state["load_msg"],
+            st.session_state.get("load_msg"),
             "warning",
             "⚠️ Không có dữ liệu cho " + ", ".join(failed)
-        )
-        st.session_state["invalid_tickers"] = list(
-            set(st.session_state.get("invalid_tickers", [])) | set(failed)
         )
 
     # —— Ghép dữ liệu —— 
@@ -346,70 +321,115 @@ def page_home():
         st.session_state["page"] = "login"
         st.rerun()
         return
-
+    # ── Xóa khoảng trống đầu trang ──
+    st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 2.5rem !important;
+    }
+    section[data-testid="stSidebar"] > div:first-child {
+        padding-top: 0.5rem !important;
+        margin-top: -2rem !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     st.write(f"Xin chào **{user['full_name']}**!")
     st.write(f"Bạn đang đăng nhập với quyền: `{user['role']}`")
+
     
     # # ===========st.subheader("📌 Các chức năng của bạn:")=============
 
-    # # Nút tải dữ liệu danh mục
     # # --- khai báo  ngay từ đầu ---
-    global MEM_SAFE_MODE, BATCH_SIZE  # <-- thêm dòng này
-
-    # Tạo 10 cột, col1 rộng hơn, col9 và col10 chuẩn, các cột còn lại nhỏ
-    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([12,2,1,1,1,2,2,2,8,8])
-
-    # Nút Phân tích & dự báo ở col1
-    with col1:
-        if st.button("📊 Phân tích & dự báo", key="btn_download"):
-            tickers = st.session_state.get("tickers", [])
-            if user and tickers:
-                record_user_ticker_view(user["id"], tickers)
-            run_download(
-                tickers,
-                st.session_state.get("from_date", "2020-01-01"),
-                st.session_state.get("to_date", datetime.now().date())
-            )
-
-    # col2 → col8 trống
-    # Nút Pending ở col9 (chỉ admin)
-    with col9:
-        if user.get("role") == "admin":
-            if st.button("📌 Pending", key="btn_pending"):
-                st.session_state["page"] = "admin_activate"
-                st.rerun()
-
-    # Nút Đăng xuất ở col10
-    with col10:
-        if st.button("🚀 Đăng xuất", key="btn_logout"):
-            st.session_state["user"] = None
-            st.session_state["enter_home"] = False
-            st.session_state["page"] = "login"
-            st.rerun()
-
-    
-    # ========= Sidebar ==========================================================
+    global MEM_SAFE_MODE, BATCH_SIZE  
+    # ========= Sidebar ===========
     
     # ✅ Chọn nguồn dữ liệu
     data_source = st.sidebar.selectbox(
         "Nguồn dữ liệu:",
-        ["yfinance", "vndirect"],
+        ["vnstock", "yf"],
+        format_func=lambda x: "vnstock (VCI)" if x == "vnstock" else "Yahoo Finance",
         index=0,
-        help="Chọn nguồn để tải dữ liệu: Yahoo Finance hoặc VNDIRECT"
+        key="data_source",
+        help="Chọn nguồn để tải dữ liệu: vnstock (VCI) hoặc Yahoo Finance"
     )
+    # Detect đổi nguồn → reset data cũ + cảnh báo
+    prev_source = st.session_state.get("data_source_prev")
+    if prev_source is not None and prev_source != data_source:
+        st.session_state["portfolio_data"] = None
+        st.session_state["forecast_result"] = {}
+        st.session_state["invalid_tickers"] = []
+        st.sidebar.warning(
+            f"⚠️ Đã đổi nguồn {prev_source.upper()} → {data_source.upper()}. "
+            "Vui lòng nhấn 📊 Phân tích & dự báo để tải lại dữ liệu."
+        )
+    st.session_state["data_source_prev"] = data_source
+    # # ✅ Nhập danh sách ticker
+    # tickers_input = st.sidebar.text_input(
+    #     "Nhập ticker (cách bởi dấu phẩy)",
+    #     "TCB,VGI" if data_source == "vnstock" else "VIC.VN,FPT.VN,ACB.VN,HPG.VN",
+    #     help=(
+    #         "Ví dụ: SHB, ACB, VIC (vnstock dùng mã thuần, không có .VN)"
+    #         if data_source == "vnstock" else
+    #         "Ví dụ: SHB.VN, ACB.VN, VIC.VN (Yahoo Finance dùng suffix .VN)"
+    #     ),
+    #     key="tickers_input"
+    # )
+    
+    # ✅ Gợi ý nhóm mã — chỉ hiện khi dùng vnstock
+    if data_source == "vnstock":
+        try:
+            from vnstock import Listing
+            _listing = Listing()
+            _vn30  = ",".join(_listing.symbols_by_group("VN30").tolist())
+            _vn100 = ",".join(_listing.symbols_by_group("VN100").tolist())
+        except Exception:
+            _vn30  = "ACB,BID,CTG,FPT,GAS,HPG,MBB,MSN,MWG,PLX,SAB,SHB,SSI,STB,TCB,VCB,VHM,VIC,VJC,VNM,VPB,VRE"
+            _vn100 = _vn30
+
+        _group = st.sidebar.selectbox(
+            "💡 Gợi ý nhóm mã:",
+            ["-- Tự nhập --", "VN30", "VN100"],
+            index=0,
+            key="ticker_group"
+        )
+        if _group == "VN30":
+            _suggested = _vn30
+        elif _group == "VN100":
+            _suggested = _vn100
+        else:
+            _suggested = "VIC,FPT"
+    else:
+        _group     = "-- Tự nhập --"
+        _suggested = "VIC.VN,FPT.VN"
+
 
     # ✅ Nhập danh sách ticker
     tickers_input = st.sidebar.text_input(
         "Nhập ticker (cách bởi dấu phẩy)",
-        "VIC.VN,FPT.VN",
-        help="Ví dụ: SHB.VN,ACB.VN,VIC.VN",
+        _suggested,
+        help=(
+            "Ví dụ: SHB, ACB, VIC (vnstock dùng mã thuần, không có .VN)"
+            if data_source == "vnstock" else
+            "Ví dụ: SHB.VN, ACB.VN, VIC.VN (Yahoo Finance dùng suffix .VN)"
+        ),
         key="tickers_input"
     )
+    st.session_state["tickers_input_val"] = tickers_input
+
     # Ép input sang chữ hoa ngay khi nhập
     tickers_input = tickers_input.upper()
 
     # ✅ Tách danh sách ticker
     tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+
+    # ✅ Auto-strip suffix .VN/.HM/.HNX khi dùng VNSTOCK
+    # Vì API VNSTOCK chỉ nhận mã thuần: VIC, FPT — không nhận VIC.VN, FPT.VN
+    if data_source in ("vnd", "vnstock"):
+        tickers = [
+            t.replace(".VN", "").replace(".HM", "").replace(".HNX", "")
+            for t in tickers
+        ]
+
     st.session_state["tickers"] = tickers
     # ============
     
@@ -418,7 +438,7 @@ def page_home():
     #====
     from_date = date_cols[0].date_input(
         "📅 Từ ngày",
-        value=st.session_state.get("from_date", date(2023, 1, 1)),
+        value=st.session_state.get("from_date", date(2025, 1, 1)),
         format="DD/MM/YYYY",
         key="from_date"
     )
@@ -454,6 +474,40 @@ def page_home():
             "Batch nhỏ hơn = ít RAM hơn nhưng thời gian tổng thể dài hơn."
     )
 
+    # Tạo 10 cột, col1 rộng hơn, col9 và col10 chuẩn, các cột còn lại nhỏ
+    col1, col2, col3, col4, col5, col6, col7, col8, col9, col10 = st.columns([12,2,1,1,1,2,2,2,8,8])
+
+    # Nút Phân tích & dự báo ở col1
+    with col1:
+        if st.button("📊 Phân tích & dự báo", key="btn_download"):
+            tickers = st.session_state.get("tickers", [])
+            if user and tickers:
+                record_user_ticker_view(user["id"], tickers)
+            run_download(
+                tickers,
+                st.session_state.get("from_date", "2020-01-01"),
+                st.session_state.get("to_date", datetime.now().date()),
+                source=data_source
+            )
+            st.session_state["do_forecast"] = True   # ← thêm dòng này
+            st.rerun()
+
+    # col2 → col8 trống
+    # Nút Pending ở col9 (chỉ admin)
+    with col9:
+        if user.get("role") == "admin":
+            if st.button("📌 Pending", key="btn_pending"):
+                st.session_state["page"] = "admin_activate"
+                st.rerun()
+
+    # Nút Đăng xuất ở col10
+    with col10:
+        if st.button("🚀 Đăng xuất", key="btn_logout"):
+            st.session_state["user"] = None
+            st.session_state["enter_home"] = False
+            st.session_state["page"] = "login"
+            st.rerun()
+    
     # ========= Session init =====================================================
     for k, v in {
         "portfolio_data":   None,
@@ -462,13 +516,10 @@ def page_home():
     }.items():
         st.session_state.setdefault(k, v)
 
-    
-
     # ========= Notification placeholders (khởi tạo 1 lần) ======================
     if st.session_state.get("load_msg") is None:          # 👈 dùng .get()
         st.session_state["load_msg"] = st.empty()         # placeholder tải dữ liệu
 
-    
     # —— giữ nguyên đoạn kiểm tra dữ liệu ——
     portfolio_data: pd.DataFrame | None = st.session_state["portfolio_data"]
 
@@ -477,7 +528,6 @@ def page_home():
         return
     
     # ====================CHATBOT=================================
-    # --- Khởi tạo lịch sử chat chung ---
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []
 
@@ -499,7 +549,6 @@ def page_home():
 
             # 🔄 Bắt buộc rerun ngay để hiển thị đúng (tránh trễ 1 câu)
             st.rerun()
-
 
     # ==============Tabs phân quyền=====================
     # Lấy username từ session (hoặc từ login)
@@ -525,6 +574,65 @@ def page_home():
         # Map feature -> index
         tab_map = {f: i for i, f in enumerate(permissions) if f in FEATURE_TABS}
 
+        TRADING_DAYS_PER_YEAR = 252
+
+        # MIN_ROWS phải khớp với lstm_model.py và tcn_model.py
+        MIN_ROWS = 252
+
+        # -------------------------
+        # Helpers
+        # -------------------------
+        def get_training_config_from_df(df_close: pd.DataFrame):
+            df = df_close.dropna(subset=["Close"]).copy()
+            n_valid = len(df)
+
+            if n_valid < MIN_ROWS:
+                raise ValueError(
+                    f"Không đủ dữ liệu (cần >= {MIN_ROWS} dòng có Close, "
+                    f"hiện có {n_valid}). Distribution log return chưa ổn định."
+                )
+
+            # -----------------------------
+            # 1. Adaptive training horizon (smoothed instead of hard bucket)
+            # -----------------------------
+            years_avail = n_valid / TRADING_DAYS_PER_YEAR
+
+            # smooth scaling (log dampening)
+            train_years = int(np.clip(round(np.log1p(years_avail)), 1, 3))
+
+            # -----------------------------
+            # 2. Adaptive lookback
+            # -----------------------------
+            if n_valid < 200:
+                lookback = 30
+            elif n_valid < 500:
+                lookback = 60
+            else:
+                lookback = 90
+
+            # ensure lookback không vượt data
+            lookback = min(lookback, n_valid // 3)
+
+            # -----------------------------
+            # 3. Train size (robust slicing)
+            # -----------------------------
+            train_size = min(n_valid, int(train_years * TRADING_DAYS_PER_YEAR))
+
+            df_train = df.tail(train_size).copy()
+
+            # -----------------------------
+            # 4. Config output (cleaned)
+            # forecast_days bị bỏ — caller truyền n_days trực tiếp
+            # để đồng bộ giữa tab train và tab dự báo
+            # -----------------------------
+            cfg = {
+                "train_years":  train_years,
+                "lookback":     lookback,
+                "train_size":   len(df_train),
+                "data_size":    n_valid
+            }
+
+            return df_train, cfg
 
         # ===================================
 
@@ -553,73 +661,123 @@ def page_home():
                         )
                     )
 
-                    forecast_days = st.slider("Số ngày dự báo", 1, 30, 7, key="forecast_days_slider")
-                    # use_saved = st.checkbox("Dùng mô hình đã huấn luyện", value=False, key="forecast_use_saved")
+                    # Detect đổi model_choice → reset cache + buộc train lại
+                    _prev_model_choice = st.session_state.get("forecast_model_select_prev")
+                    if _prev_model_choice is not None and _prev_model_choice != model_choice:
+                        st.cache_resource.clear()
+                        st.session_state["do_forecast"] = True
+                    st.session_state["forecast_model_select_prev"] = model_choice
 
+                    forecast_days = st.slider("Số ngày dự báo", 1, 30, 7, key="forecast_days_slider")
+
+                    # Detect đổi forecast_days → reset cache + buộc train lại
+                    _prev_forecast_days = st.session_state.get("forecast_days_prev")
+                    if _prev_forecast_days is not None and _prev_forecast_days != forecast_days:
+                        st.cache_resource.clear()
+                        st.session_state["do_forecast"] = True
+                    st.session_state["forecast_days_prev"] = forecast_days
+                    
+                    
+                    # =====================================================================
+                    # _train_model — chỉ train, không cache
+                    # Gọi trực tiếp khi biết chắc cần train — không để cache quyết định
+                    # =====================================================================
+                    def _train_model(choice, ticker, n_days, df):
+                        """
+                        Train model cho ticker với n_days cho trước.
+                        Không cache — chỉ gọi khi model chưa tồn tại hoặc n_days không khớp.
+                        """
+                        from utils.lstm_model import MIN_ROWS as _MIN_ROWS
+
+                        if "Close" not in df.columns or df["Close"].isnull().all():
+                            raise ValueError("Dữ liệu không hợp lệ: thiếu hoặc toàn bộ giá đóng cửa.")
+                        if len(df) < _MIN_ROWS:
+                            raise ValueError(
+                                f"Không đủ dữ liệu cho {choice} "
+                                f"(cần ít nhất {_MIN_ROWS} dòng, hiện có {len(df)})."
+                            )
+
+                        tf.keras.backend.clear_session()
+
+                        # look_back lấy từ get_training_config_from_df — đồng bộ với tab train
+                        # epochs và batch_size dùng default — không expose ra UI tab dự báo
+                        _, cfg = get_training_config_from_df(df)
+                        look_back = cfg["lookback"]
+
+
+                        if choice == "LSTM":
+                            train_lstm_model(df, ticker, look_back=look_back, n_days=n_days, batch_size=16)
+                        elif choice == "TCN":
+                            train_tcn_model(df, ticker, look_back=look_back, n_days=n_days, batch_size=16)
+                        else:
+                            raise ValueError(f"Mô hình không hỗ trợ: {choice}")
+
+
+                    # =====================================================================
+                    # cached_forecast — chỉ predict, không train
+                    # Cache key: (choice, df_json, n_days, mdl_name)
+                    # df_json thay đổi khi dữ liệu mới → cache miss → predict lại đúng
+                    # =====================================================================
                     @st.cache_resource(show_spinner=False)
                     def cached_forecast(choice, df_json, n_days, mdl_name):
                         import traceback
-                        # df = pd.read_json(df_json, orient="records")
+
+                        ticker = mdl_name.replace(f"{choice.lower()}_", "")
                         df = pd.read_json(StringIO(df_json), orient="records")
 
                         try:
-                            
                             if choice == "LSTM":
-                                
-                                ticker = mdl_name.replace("lstm_", "")
-                                
-                                model, scaler = load_lstm_model(ticker)
+                                model, bundle = load_lstm_model(ticker)
+                                if model is None or bundle is None:
+                                    raise ValueError(
+                                        f"Không tải được model LSTM cho {ticker}. "
+                                        f"Vui lòng kiểm tra lại."
+                                    )
 
-                                if model is None or scaler is None:
-                                    tf.keras.backend.clear_session()
-                                    model, scaler = train_lstm_model(df, ticker)
-
-                                if "Close" not in df.columns or df["Close"].isnull().all():
-                                    raise ValueError("Dữ liệu không hợp lệ: thiếu hoặc toàn bộ giá đóng cửa.")
-                                if len(df) < 60:
-                                    raise ValueError("Không đủ dữ liệu cho LSTM (cần ít nhất 60 dòng).")
-
-                                fc = predict_lstm(df, model, scaler, ticker, n_days)
+                                fc = predict_lstm(df, model, bundle, ticker, n_days)
                                 fc["Date"] = pd.to_datetime(fc["Date"])
 
-                                # Chuẩn hóa tên cột dự báo (phiên bản cũ có cột Forecast)
                                 if "Forecast" in fc.columns:
                                     fc = fc.rename(columns={"Forecast": "Predicted_Close"})
 
                                 predicted_cols = [col for col in fc.columns if col.startswith("Predicted_")]
 
-                                return fc[["Date"] + predicted_cols], predicted_cols
+                                return {
+                                    "data": fc[["Date"] + predicted_cols],
+                                    "predicted_cols": predicted_cols,
+                                    "error": None
+                                }
 
-                            # ==========TCN==========
                             elif choice == "TCN":
-                                ticker = mdl_name.replace("tcn_", "")
-                                
-                                model, scaler = load_tcn_model(ticker)
+                                model, bundle = load_tcn_model(ticker)
+                                if model is None or bundle is None:
+                                    raise ValueError(
+                                        f"Không tải được model TCN cho {ticker}. "
+                                        f"Vui lòng kiểm tra lại."
+                                    )
 
-                                if model is None or scaler is None:
-                                    tf.keras.backend.clear_session()
-                                    model, scaler = train_tcn_model(df, ticker)
-
-                                if "Close" not in df.columns or df["Close"].isnull().all():
-                                    raise ValueError("Dữ liệu không hợp lệ: thiếu hoặc toàn bộ giá đóng cửa.")
-                                if len(df) < 60:
-                                    raise ValueError("Không đủ dữ liệu cho TCN (cần ít nhất 60 dòng).")
-
-                                fc = predict_tcn(df, model, scaler, ticker, n_days)
+                                fc = predict_tcn(df, model, bundle, ticker, n_days)
                                 fc["Date"] = pd.to_datetime(fc["Date"])
                                 predicted_cols = [col for col in fc.columns if col.startswith("Predicted_")]
 
-                                return fc[["Date"] + predicted_cols], predicted_cols
-                            
+                                return {
+                                    "data": fc[["Date"] + predicted_cols],
+                                    "predicted_cols": predicted_cols,
+                                    "error": None
+                                }
+
                             else:
                                 raise ValueError(f"Mô hình không hỗ trợ: {choice}")
 
                         except Exception as e:
                             st.error(f"❌ Lỗi khi dự báo với model `{mdl_name}`: {str(e)}")
                             st.code(traceback.format_exc())
-                            return None, "DataError"
+                            return {
+                                "data": None,
+                                "predicted_cols": [],
+                                "error": "DataError"
+                            }
 
-                    
                     valid_tickers = get_valid_tickers(portfolio_data)
                     processed, failed_tickers = [], []
                     status_ph = st.empty()
@@ -628,90 +786,129 @@ def page_home():
                         st.error(f"Mô hình {model_choice} không hỗ trợ.")
                         st.stop()
 
-                    for tk in valid_tickers:
-                        df_tk = portfolio_data[portfolio_data["Ticker"] == tk]
-                        if df_tk.empty or "Close" not in df_tk.columns:
-                            st.warning(f"{tk}: Dữ liệu không hợp lệ hoặc thiếu")
-                            failed_tickers.append(tk)
-                            continue
-                        
-                        
-                        #
-                        model_exists = False
+                    # Chỉ train+predict khi người dùng vừa nhấn nút
+                    if st.session_state.get("do_forecast"):
+                        st.session_state["do_forecast"] = False   # reset ngay để không chạy lại
+                        st.session_state["rerun_called"] = False
+                        st.cache_resource.clear()  # xóa cache predict khi train mới
+                        for tk in valid_tickers:
+                            df_tk = portfolio_data[portfolio_data["Ticker"] == tk]
+                            if df_tk.empty or "Close" not in df_tk.columns:
+                                st.warning(f"{tk}: Dữ liệu không hợp lệ hoặc thiếu")
+                                failed_tickers.append(tk)
+                                continue
 
-                        if model_choice == "LSTM":
-                            model_file = f"models/lstm/lstm_model_{tk}.h5"
-                            scaler_file = f"models/lstm/lstm_scaler_{tk}.pkl"
-                            model_exists = os.path.exists(model_file) and os.path.exists(scaler_file)
+                            # =====================
+                            # Kiểm tra model tồn tại TRƯỚC — không phụ thuộc df_json
+                            # Logic đơn giản: file tồn tại + load được + n_days khớp
+                            # =====================
+                            model_exists = False
 
-                        elif model_choice == "TCN":
-                            model_file = f"models/tcn/tcn_model_{tk}.h5"
-                            scaler_file = f"models/tcn/tcn_scaler_{tk}.pkl"
-                            model_exists = os.path.exists(model_file) and os.path.exists(scaler_file)
+                            if model_choice == "LSTM":
+                                model_file  = f"models/lstm/lstm_model_{tk}.keras"
+                                scaler_file = f"models/lstm/lstm_scaler_{tk}.pkl"
+                                if os.path.exists(model_file) and os.path.exists(scaler_file):
+                                    _m, _b = load_lstm_model(tk)
+                                    model_exists = (
+                                        _m is not None
+                                        and isinstance(_b, dict)
+                                        and _b.get("n_days") == forecast_days
+                                        and _b.get("trained_date") == date.today().isoformat()
+                                    )
 
-                        if model_exists:
-                            status_ph.info(
-                                f"⏳ Đang dự báo mã {tk}…, vui lòng chờ trong giây lát."
-                            )
-                        else:
-                            status_ph.info(
-                                f"⏳ Đang huấn luyện & dự báo {tk}…, thời gian phụ thuộc vào khối lượng dữ liệu của bạn."
-                            )
+                            elif model_choice == "TCN":
+                                model_file  = f"models/tcn/tcn_model_{tk}.keras"
+                                scaler_file = f"models/tcn/tcn_scaler_{tk}.pkl"
+                                if os.path.exists(model_file) and os.path.exists(scaler_file):
+                                    _m, _b = load_tcn_model(tk)
+                                    model_exists = (
+                                        _m is not None
+                                        and isinstance(_b, dict)
+                                        and _b.get("n_days") == forecast_days
+                                        and _b.get("trained_date") == date.today().isoformat()
+                                    )
 
-                       
-                        df_tk = df_tk.reset_index(drop=True)
+                            df_tk = df_tk.reset_index(drop=True)
+                            df_tk = df_tk.sort_values("Date").reset_index(drop=True)
+                            df_json_str = df_tk.to_json(orient="records")
 
-                        fc_df, error_type = cached_forecast(
-                            model_choice,
-                            df_tk.to_json(orient="columns"),
-                            forecast_days,
-                            f"{model_choice.lower()}_{tk}"
-                        )
-
-                        if fc_df is None or fc_df.empty:
-                            if error_type == "DataError":
-                                st.warning(f"{tk}: Không thể dự báo – dữ liệu đầu vào lỗi hoặc không hợp lệ.")
+                            if model_exists:
+                                status_ph.info(
+                                    f"⏳ Đang dự báo mã {tk}…, vui lòng chờ trong giây lát."
+                                )
                             else:
-                                st.warning(f"{tk}: Lỗi khi dự báo (model hoặc dữ liệu).")
-                            failed_tickers.append(tk)
-                            continue
+                                status_ph.info(
+                                    f"⏳ Đang huấn luyện & dự báo {tk}…, thời gian phụ thuộc vào khối lượng dữ liệu của bạn."
+                                )
+                                try:
+                                    _train_model(model_choice, tk, forecast_days, df_tk)
+                                except Exception as e:
+                                    st.warning(f"{tk}: {str(e)}")
+                                    failed_tickers.append(tk)
+                                    continue
+                            # =====================
+                            # PREDICT — cache theo (choice, df_json, n_days, mdl_name)
+                            # Model đã chắc chắn tồn tại tại đây
+                            # df_json thay đổi khi dữ liệu mới → cache miss → predict lại
+                            # =====================
+                            forecast_result = cached_forecast(
+                                model_choice,
+                                df_json_str,
+                                forecast_days,
+                                f"{model_choice.lower()}_{tk}"
+                            )
 
-                        # CHUẨN HOÁ FORECAST RESULT CHO CÁC MÔ HÌNH
-                        
-                        fc_df = fc_df.copy()
-                        rename_map = {
-                            "date": "Date",
-                            "open": "Open",
-                            "high": "High",
-                            "low": "Low",
-                            "close": "Close",
-                            "volume": "Volume",
-                            "forecast": "Predicted_Close",
-                            "predicted_close": "Predicted_Close"
-                        }
-                        fc_df.rename(columns=rename_map, inplace=True)
-                        if "Date" in fc_df.columns:
-                            fc_df["Date"] = pd.to_datetime(fc_df["Date"])
+                            fc_df = forecast_result["data"]
+                            predicted_cols = forecast_result["predicted_cols"]
+                            error_type = forecast_result["error"]
 
-                        if model_choice in ["LSTM", "TCN"]:
-                            base_cols = ["Date", "Open", "High", "Low", "Close", "Volume"]
-                            predicted_cols = [col for col in fc_df.columns if col.startswith("Predicted_")]
-                            for col in base_cols:
-                                if col not in fc_df.columns:
-                                    fc_df[col] = None
-                            fc_df = fc_df[base_cols + predicted_cols]
+                            if fc_df is None or fc_df.empty:
+                                if error_type == "DataError":
+                                    st.warning(f"{tk}: Không thể dự báo – dữ liệu đầu vào lỗi hoặc không hợp lệ.")
+                                else:
+                                    st.warning(f"{tk}: Lỗi khi dự báo (model hoặc dữ liệu).")
+                                failed_tickers.append(tk)
+                                continue
 
+                            # CHUẨN HOÁ FORECAST RESULT CHO CÁC MÔ HÌNH
 
-                        # Lưu vào session_state
-                        if "forecast_result" not in st.session_state:
-                            st.session_state["forecast_result"] = {}
-                        st.session_state["forecast_result"][tk] = fc_df
+                            fc_df = fc_df.copy()
+                            rename_map = {
+                                "date": "Date",
+                                "open": "Open",
+                                "high": "High",
+                                "low": "Low",
+                                "close": "Close",
+                                "volume": "Volume",
+                                "forecast": "Predicted_Close",
+                                "predicted_close": "Predicted_Close"
+                            }
+                            fc_df.rename(columns=rename_map, inplace=True)
+                            if "Date" in fc_df.columns:
+                                fc_df["Date"] = pd.to_datetime(fc_df["Date"])
 
-                         # --- Lưu vào database ---
-                        save_forecast(tk, fc_df)
-                        
-                        processed.append(tk)
+                            if model_choice in ["LSTM", "TCN"]:
+                                fc_df = fc_df[["Date"] + predicted_cols]
+
+                            # Lưu vào session_state
+                            if "forecast_result" not in st.session_state:
+                                st.session_state["forecast_result"] = {}
+                            st.session_state["forecast_result"][tk] = fc_df
+
+                            # --- Lưu vào database ---
+                            save_forecast(tk, fc_df)
+
+                            processed.append(tk)
                    
+                    # =========================================================
+                    # KHỐI 2: HIỂN THỊ — luôn chạy nếu có dữ liệu
+                    # =========================================================
+                    forecast_result_data = st.session_state.get("forecast_result", {})
+                    for tk in valid_tickers:
+                        fc_df = forecast_result_data.get(tk)
+                        if fc_df is None or fc_df.empty:
+                            continue
+                        predicted_cols = [col for col in fc_df.columns if col.startswith("Predicted_")]
                         with st.expander(f"\U0001F4C8 Dự báo chi tiết danh mục - {tk}"):
 
                             # ================== BIỂU ĐỒ PLOTLY DỰ BÁO GIÁ ==================
@@ -731,6 +928,7 @@ def page_home():
                                     name="Dự báo"
                                 ))
 
+                                df_tk = portfolio_data[portfolio_data["Ticker"] == tk]
                                 if "Date" in df_tk.columns and "Close" in df_tk.columns:
                                     last_date = pd.to_datetime(df_tk["Date"].iloc[-1], errors="coerce")
                                     last_close = pd.to_numeric(df_tk["Close"].iloc[-1], errors="coerce")
@@ -748,7 +946,6 @@ def page_home():
                                     xaxis_title="Ngày",
                                     yaxis_title="Giá đóng cửa"
                                 )
-                                # st.plotly_chart(fig, use_container_width=True)
                                 st.plotly_chart(fig, width="stretch")
 
                             except Exception as e:
@@ -756,6 +953,8 @@ def page_home():
 
                             # ================== BẢNG DỰ BÁO (VIỆT HÓA & ĐỊNH DẠNG) ==================
                             raw_fc = st.session_state["forecast_result"].get(tk)  # giữ nguyên bản raw (numeric)
+                            if raw_fc is not None:
+                                raw_fc = raw_fc.copy()   # ← thêm dòng này
                             if raw_fc is not None and not raw_fc.empty:
                                 # 1) Chuẩn bị dataframe để hiển thị (copy từ raw, chỉ chọn cột cần thiết)
                                 cols_needed = ["Date", "Predicted_Open", "Predicted_High", "Predicted_Low", "Predicted_Close", "Predicted_Volume"]
@@ -786,13 +985,10 @@ def page_home():
                                 # - Khối lượng
                                 if "Khối lượng" in display_df.columns:
                                     display_df["Khối lượng"] = display_df["Khối lượng"].apply(format_volume)
-                        
-
+                    
                                 # Hiển thị bảng (đã format)
-                                # st.dataframe(display_df, use_container_width=True)
+                                
                                 st.dataframe(display_df, width="stretch")
-
-
                             else:
                                 st.warning(f"⚠️ {tk}: Dữ liệu bảng dự báo chưa sẵn sàng.")
 
@@ -810,8 +1006,7 @@ def page_home():
                                     raise ValueError("Thiếu cột 'Predicted_Close' trong dữ liệu raw để vẽ chart")
                                 df_chart["Predicted_Close"] = pd.to_numeric(df_chart["Predicted_Close"], errors="coerce")
 
-                                # Lấy số ngày forecast (dùng để tính SMA)
-                                forecast_days = st.session_state.get("forecast_days_slider", 7)
+                                # forecast_days lấy từ slider đầu tab, không gán lại ở đây
                                 # Nếu số dòng < forecast_days, rolling sẽ trả NaN — điều này chấp nhận được
                                 df_chart["SMA"] = df_chart["Predicted_Close"].rolling(window=forecast_days).mean()
 
@@ -844,16 +1039,11 @@ def page_home():
                                     )
                                 )
 
-                                # st.plotly_chart(fig2, use_container_width=True)
                                 st.plotly_chart(fig2, width="stretch")
 
                             except Exception as e:
                                 st.error(f"⚠️ Lỗi khi vẽ biểu đồ Plotly cho {tk}: {e}")
 
-                    # if processed:
-                    #     status_ph.success("✅ Hoàn thành dự báo cho: " + ", ".join(processed))
-                    # elif not failed_tickers:
-                    #     status_ph.warning("⚠️ Không có mã nào được dự báo.")
                     import time
 
                     total_tickers = len(valid_tickers)
@@ -910,11 +1100,9 @@ def page_home():
                                 st.error("❌ Không có mã nào đủ điều kiện để xuất báo cáo.")
                             else:
                                 # ✅ Chuẩn hóa dữ liệu cho export_report_pdf
-                                tickers = [d["ticker"] for d in valid_data]  # list ticker
-                                forecast_dict = {d["ticker"]: d["forecast_df"] for d in valid_data}  # dict {ticker: DataFrame}
-
-                                # ✅ Định dạng tên file theo yêu cầu
-                                ticker_part = "_".join(tickers)
+                                ticker_list = [d["ticker"] for d in valid_data]  # list ticker
+                                forecast_dict = {d["ticker"]: d["forecast_df"] for d in valid_data}
+                                ticker_part = "_".join(ticker_list)
                                 
                                 filename = f"{ticker_part}_{today_str}_forecast.pdf"
                                 output_path = os.path.join("reports", filename)
@@ -922,7 +1110,7 @@ def page_home():
 
                                 try:
                                     pdf_file_path = export_report_pdf(
-                                        ticker=tickers,                 # list ticker
+                                        ticker=ticker_list,                 # list ticker
                                         forecast_df=forecast_dict,      # dict dữ liệu
                                         output_path=output_path,
                                         include_backtest=False,
@@ -958,6 +1146,7 @@ def page_home():
                             if "forecast_result" in st.session_state:
                                 df = st.session_state["forecast_result"].get(tk)
                                 if df is not None:
+                                    df = df.copy()   # ← thêm dòng này
                                     if isinstance(df.index, pd.DatetimeIndex):
                                         df = df.reset_index().rename(columns={"index": "date"})
 
@@ -1070,7 +1259,6 @@ def page_home():
                                     "Khối lượng dự báo",
                                     "Thống kê khối lượng"
                                 ]],
-                                # use_container_width=True  # ⚡ bổ sung tham số tại đây
                                 width="stretch"  # ⚡ bổ sung tham số tại đây
                             )
 
@@ -1110,7 +1298,7 @@ def page_home():
                             if "forecast_result" in st.session_state:
                                 df = st.session_state["forecast_result"].get(tk)
                                 if df is not None:
-                                    # Chuẩn hoá index/cột date
+                                    df = df.copy()   # ← thêm dòng này
                                     if isinstance(df.index, pd.DatetimeIndex):
                                         df = df.reset_index().rename(columns={"index": "date"})
 
@@ -1157,6 +1345,7 @@ def page_home():
 
                                     # ====== Thêm phân loại hành vi nhà đầu tư ======
                                     df_numeric = st.session_state["forecast_result"][tk].copy()
+                                    df_numeric.columns = [col.strip().lower() for col in df_numeric.columns]
                                     df_numeric["predicted_close"] = pd.to_numeric(df_numeric["predicted_close"], errors="coerce")
                                     df_numeric = df_numeric.sort_values("date")
                                     df_numeric["return"] = df_numeric["predicted_close"].pct_change()
@@ -1189,7 +1378,6 @@ def page_home():
                             forecast_days = st.session_state.get("forecast_days_slider", 7)
 
                             # Hiển thị bảng
-                            # st.dataframe(df_forecast, use_container_width=True)
                             st.dataframe(df_forecast, width="stretch")
 
                             # Biểu đồ plotly
@@ -1223,8 +1411,6 @@ def page_home():
                                     legend=dict(x=0.95, y=0.05, xanchor="right", yanchor="bottom"),
                                     height=400
                                 )
-
-                                # st.plotly_chart(fig, use_container_width=True)
                                 st.plotly_chart(fig, width="stretch")
 
                                 # ====== Tóm tắt hành vi ======
@@ -1255,7 +1441,7 @@ def page_home():
                 # ===============Giao dịch thị trường thực tế(khớp lệnh)============
                 
                 with sub_tabs[3]:
-                    source = "yf"
+                    source = data_source #"yf"
                     st.markdown("### 📘 Giao dịch khớp lệnh thực tế (tham khảo)")
 
                     tickers = st.session_state.get("tickers", [])
@@ -1317,7 +1503,6 @@ def page_home():
                                 styled_df = df_display.style.map(highlight_trend, subset=["Xu hướng"])
 
                                 with st.expander(f"📊 Khớp lệnh thực tế của {ticker} (tham khảo)"):
-                                    # st.dataframe(styled_df, use_container_width=True, height=forecast_days * 40)
                                     st.dataframe(styled_df, width="stretch", height=forecast_days * 40)
 
                                     # ===== Biểu đồ =====
@@ -1357,8 +1542,7 @@ def page_home():
                                             title=f"📈 Xu hướng giá & SMA ({forecast_days} kỳ) - {ticker}"
                                         )
 
-                                        # st.altair_chart(chart, use_container_width=True)
-                                        st.altair_chart(chart, width="stretch")
+                                        st.altair_chart(chart, use_container_width=True)
                                     except Exception as e:
                                         st.error(f"⚠️ Lỗi khi vẽ biểu đồ cho {ticker}: {e}")
 
@@ -1400,7 +1584,6 @@ def page_home():
                         with st.expander(f"📉 Phân tích rủi ro theo mã - {tk}"):
                             st.plotly_chart(
                                 px.bar(df, x="Metric", y="Value", text_auto=True),
-                                # use_container_width=True
                                 width="stretch"
                             )
                             st.dataframe(df)
@@ -1424,15 +1607,15 @@ def page_home():
                             today_str = datetime.today().strftime("%d%m%Y")
                             st.session_state["today_str"] = today_str
 
-                        tickers = list(risk_result.keys())
-                        ticker_part = "_".join(tickers)
+                        ticker_list = list(risk_result.keys())
+                        ticker_part = "_".join(ticker_list)
                         filename = f"{ticker_part}_{today_str}_risk.pdf"
                         output_path = os.path.join("reports", filename)
                         os.makedirs("reports", exist_ok=True)
 
                         try:
                             pdf_file_path = export_report_pdf(
-                                ticker=tickers,
+                                ticker=ticker_list,
                                 bt_df=None,
                                 perf_df=None,
                                 risk_df=risk_result,   # ✅ đưa vào đây
@@ -1521,7 +1704,6 @@ def page_home():
                             # --- Hiển thị bảng hành vi ---
                             st.subheader("📈 Hành vi nhà đầu tư")
                             display_cols = ["Ngày","Open","High","Low","Close","Volume","PO","PH","PL","PC","PV","Độ biến động","Tín hiệu xu hướng"]
-                            # st.dataframe(df[display_cols], use_container_width=True)
                             st.dataframe(df[display_cols], width="stretch")
 
                             # --- Biểu đồ hành vi (Volume + Tín hiệu xu hướng) ---
@@ -1554,7 +1736,6 @@ def page_home():
                                     yaxis_title="Giá trị",
                                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                                 )
-                                # st.plotly_chart(fig, use_container_width=True)
                                 st.plotly_chart(fig, width="stretch")
                             except Exception as e:
                                 st.error(f"Lỗi vẽ biểu đồ hành vi: {e}")
@@ -1581,7 +1762,6 @@ def page_home():
 
                                 st.subheader("📉 Backtest dự báo")
                                 st.markdown(f"- **MAE**: {format_currency(mae)}  \n- **RMSE**: {format_currency(rmse)}  \n- **MAPE**: {mape:.2f} %")
-                                # st.dataframe(df_bt[["Ngày","Giá thực tế","Giá dự báo","Sai số","Sai số %"]], use_container_width=True)
                                 st.dataframe(df_bt[["Ngày","Giá thực tế","Giá dự báo","Sai số","Sai số %"]], width="stretch")
 
                                 fig2 = go.Figure()
@@ -1590,7 +1770,6 @@ def page_home():
                                 fig2.add_trace(go.Bar(x=df_bt["Date"], y=df_bt["PC"] - df_bt["Close"], name="Sai số", opacity=0.4))
                                 fig2.update_layout(title=f"So sánh giá thực tế vs giá dự báo – {tk}",
                                                 xaxis_title="Ngày", yaxis_title="Giá")
-                                # st.plotly_chart(fig2, use_container_width=True)
                                 st.plotly_chart(fig2, width="stretch")
                             else:
                                 st.warning("⚠️ Không có đủ dữ liệu để backtest.")
@@ -1600,9 +1779,9 @@ def page_home():
                         df_backtest = db_manager.load_data(tk)
                         if not df_backtest.empty:
                             df_backtest["Date"] = pd.to_datetime(df_backtest["Date"], errors="coerce")
-                            today = pd.Timestamp.today().normalize()
-                            cutoff = today - pd.Timedelta(days=180)
-                            df_backtest = df_backtest[(df_backtest["Date"] < today) & (df_backtest["Date"] >= cutoff)]
+                            today_ts = pd.Timestamp.today().normalize()
+                            cutoff_ts = today_ts - pd.Timedelta(days=180)
+                            df_backtest = df_backtest[(df_backtest["Date"] < today_ts) & (df_backtest["Date"] >= cutoff_ts)]
                             show_behavior_and_backtest(tk, df_backtest)
                         else:
                             st.warning(f"⚠️ {tk}: Không có dữ liệu backtest.")
@@ -1633,9 +1812,6 @@ def page_home():
 
                     invalid = st.session_state.get("invalid_tickers", [])
                     valid = [t for t in tickers if t not in invalid]
-
-                    BATCH_SIZE = 5  # Có thể điều chỉnh theo khả năng máy
-                    MEM_SAFE_MODE = True
 
                     # === TỰ ĐỘNG BACKTEST NẾU CHƯA CÓ DỮ LIỆU NHƯNG ĐỦ ĐIỀU KIỆN ===
                     auto_bt_ready = valid and selected_strategies and not st.session_state.get("backtest_result")
@@ -1676,7 +1852,8 @@ def page_home():
                         st.session_state["backtest_result"] = bt_result
                         st.session_state["performance_result"] = perf_result
                         st.session_state["invalid_tickers"] = list(set(st.session_state.get("invalid_tickers", [])) | set(failed_bt))
-                        st.rerun()  # reload tab để hiển thị kết quả tự động
+                        if bt_result:  # chỉ rerun khi có kết quả thực sự, tránh vòng lặp vô hạn
+                            st.rerun()
 
                     # === Lưu kết quả session để dùng báo cáo tổng hợp ===
                     bt_result = st.session_state.get("backtest_result", {})
@@ -1692,8 +1869,8 @@ def page_home():
                             ticker = t.upper()
                             df["Ticker"] = ticker
                             df["Date"] = pd.to_datetime(df["Date"])
-                            cutoff = datetime.now() - timedelta(days=180)
-                            df = df[df["Date"] >= cutoff]
+                            cutoff_bt = datetime.now() - timedelta(days=180)
+                            df = df[df["Date"] >= cutoff_bt]
 
                             if "Predicted_Close" in df.columns:
                                 df = df.drop(columns=["Predicted_Close"])
@@ -1737,9 +1914,7 @@ def page_home():
                             fig.update_layout(hovermode="x unified")
 
                             with st.expander(f"📈 {t} ({strategy}) - Portfolio Value", expanded=False):
-                                # st.plotly_chart(fig, use_container_width=True)
                                 st.plotly_chart(fig, width="stretch")
-                                # st.dataframe(df_display, use_container_width=True)
                                 st.dataframe(df_display, width="stretch")
 
                     # === NÚT CHẠY BACKTEST THỦ CÔNG (ĐƯA XUỐNG DƯỚI EXPANDER) ===
@@ -1788,10 +1963,6 @@ def page_home():
                         if not bt_result:
                             st.warning("⚠️ Không có mã nào được backtest thành công.")
 
-
-                             
-
-
                     if perf_result:
                         st.subheader("📌 Danh sách mã đạt yêu cầu")
                         table = []
@@ -1823,7 +1994,6 @@ def page_home():
                             ascending = st.checkbox("⬆️ Sắp xếp tăng dần", value=False)
                             table_df = table_df.sort_values(by=sort_metric, ascending=ascending)
 
-                        # st.dataframe(table_df, use_container_width=True)
                         st.dataframe(table_df, width="stretch")
                         st.caption("📌 Lọc theo hiệu suất và dữ liệu gần nhất")
 
@@ -1832,7 +2002,6 @@ def page_home():
                     st.markdown("---")
                     st.subheader("📄 Báo cáo Backtest")
 
-                    
                     if st.button("📥 Xuất báo cáo PDF Backtest", help="Tạo báo cáo PDF từ dữ liệu đã backtest"):
                         # import os
                         bt_result = st.session_state.get("backtest_result", {})
@@ -1894,10 +2063,10 @@ def page_home():
                                 st.error("❌ Không có mã nào đủ điều kiện để xuất báo cáo.")
                             else:
                                 # ✅ Danh sách ticker
-                                tickers = [d["ticker"] for d in valid_data]
+                                ticker_list = [d["ticker"] for d in valid_data]
 
                                 # ✅ Đặt tên file theo quy tắc
-                                ticker_part = "_".join(tickers)
+                                ticker_part = "_".join(ticker_list)
                                 filename = f"{ticker_part}_{today_str}_backtest.pdf"
                                 output_path = os.path.join("reports", filename)
                                 os.makedirs("reports", exist_ok=True)
@@ -1909,12 +2078,11 @@ def page_home():
 
                                 try:
                                     pdf_file_path = export_report_pdf(
-                                        ticker=tickers,        # list ticker
+                                        ticker=ticker_list,
                                         bt_df=bt_df,
                                         perf_df=perf_df,
                                         risk_df=risk_df,
                                         weights_df=None,
-                                        # allocation_df=None,
                                         output_path=output_path,
                                         include_backtest=True,
                                         include_perf=True,
@@ -1969,7 +2137,6 @@ def page_home():
                     )
                     fig.update_traces(textinfo="label+percent", hovertemplate="%{label}: %{percent}")
                     fig.update_layout(legend_title_text="Mã cổ phiếu")
-                    # st.plotly_chart(fig, use_container_width=True)
                     st.plotly_chart(fig, width="stretch")
 
                     # 🔹 Nhập tổng vốn
@@ -1986,14 +2153,11 @@ def page_home():
                     except:
                         total_cap = 0.0
 
-
-
                     # --- Bảng phân bổ vốn ---
                     st.markdown("### 💸 Phân bổ vốn")
                     alloc = weights_df.copy()
                     alloc["Capital"] = alloc["Weight"] * total_cap
 
-                    
                     # Việt hoá cột
                     alloc_display = alloc.rename(columns={
                         "Ticker": "Mã cổ phiếu",
@@ -2002,8 +2166,6 @@ def page_home():
                         "Expected_Return": "Lợi nhuận kỳ vọng",
                         "Volatility": "Độ biến động"
                     })
-
-
                     # Format số liệu
                     alloc_display["Tỷ trọng"] = (alloc_display["Tỷ trọng"] * 100).round(2).astype(str) + " %"
                     alloc_display["Vốn phân bổ"] = alloc_display["Vốn phân bổ"].round(0).map("{:,.0f}".format)
@@ -2022,7 +2184,7 @@ def page_home():
                     st.dataframe(alloc_display)
                     
                     st.caption("💡 Đơn vị vốn phân bổ = đơn vị của Tổng vốn nhập vào")
-                    
+                    st.session_state["alloc_display"] = alloc_display  # ← thêm dòng này
                     # --- Bảng phân bổ nâng cao ---
                     st.markdown("### ⚖️ Phân bổ nâng cao theo rủi ro")
                     vols, missing_vols = [], []
@@ -2070,6 +2232,7 @@ def page_home():
                         
                         st.caption("💡 Đơn vị vốn phân bổ điều chỉnh = đơn vị của Tổng vốn nhập vào")
                         st.caption("💡 Lợi nhuận kỳ vọng tính theo 1 năm, dựa trên log return hàng ngày và annualized.")
+                        st.session_state["adj_display"] = adj_display  # ← thêm dòng này
                     else:
                         st.error(
                             f"❌ Thiếu dữ liệu Độ biến động cho: {', '.join(missing_vols)}.\n"
@@ -2085,7 +2248,6 @@ def page_home():
                         for idx, row in alloc.iterrows()
                     }
                     st.session_state["allocation_result"] = allocation_result
-
 
                 # === NÚT CHẠY TỐI ƯU MANUAL ===
                 if st.button("⚡ Tối ưu hóa lại danh mục"):
@@ -2121,13 +2283,13 @@ def page_home():
                             pdf_path = reporting.export_report_pdf(
                                 ticker=ticker_list,
                                 weights_df=weights_df,
-                                # allocation_df=allocation_df,
+                                
                                 output_path=output_path,
                                 include_rebalance=False,
                                 include_backtest=False,
                                 include_perf=False,
-                                alloc_display=alloc_display,
-                                adj_display=adj_display if 'adj_display' in locals() else None,
+                                alloc_display=st.session_state.get("alloc_display"),
+                                adj_display=st.session_state.get("adj_display"),
                                 include_risk=False,
                                 include_forecast=False,
                                 include_optimization=True
@@ -2197,7 +2359,6 @@ def page_home():
                     for t, info in portfolio.items()
                 }
 
-                
                 # --- Gợi ý tỷ trọng mục tiêu theo hiệu suất 1 tháng ---
                 return_1m = {}
                 for t in tickers_available:
@@ -2232,9 +2393,7 @@ def page_home():
                 # --- Hiển thị ---
                 st.markdown("### 📊 Bảng gợi ý tỷ trọng mục tiêu (theo hiệu suất 1 tháng gần nhất)")
                 st.caption("Hệ thống sử dụng hiệu suất 1 tháng gần nhất để đưa ra tỷ trọng gợi ý cho các mã.")
-                # st.dataframe(df_suggested, use_container_width=True)
                 st.dataframe(df_suggested, width="stretch")
-
 
                 # --- Nhập tỷ trọng mục tiêu ---
                 st.markdown("### 🎯 Tỷ trọng mục tiêu")
@@ -2295,24 +2454,20 @@ def page_home():
 
                 st.dataframe(df_plan)
 
-
-
                 # Biểu đồ trước/sau tái cân bằng
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("#### Trước khi tái cân bằng")
                     st.caption("Tỷ trọng hiện tại dựa trên giá trị thị trường.")
                     fig1 = px.pie(names=current_weights.keys(), values=current_weights.values(), title="Tỷ trọng hiện tại")
-                    # st.plotly_chart(fig1, use_container_width=True)
                     st.plotly_chart(fig1, width="stretch")
 
                 with col2:
                     st.markdown("#### Sau khi tái cân bằng")
                     st.caption("Tỷ trọng mong muốn theo mục tiêu đã nhập.")
                     fig2 = px.pie(names=target_weights.keys(), values=target_weights.values(), title="Tỷ trọng mục tiêu")
-                    # st.plotly_chart(fig2, use_container_width=True)
                     st.plotly_chart(fig2, width="stretch")
-
+                
                 # Lưu lại dữ liệu phục vụ báo cáo
                 
                 st.session_state["rebalance_plan_df"] = df_plan
@@ -2336,29 +2491,24 @@ def page_home():
                 # #==============Báo cáo kế hoạch tái cân bằng=============
 
                 if st.button("📥 Xuất báo cáo PDF Tái cân bằng"):
-                    # weights_df = st.session_state.get("weights_df", None)
                     weights_df = st.session_state.get("rebalance_weights_df", None)
 
                     if weights_df is None or weights_df.empty:
                         st.warning("⚠️ Không có dữ liệu phân bổ danh mục để xuất báo cáo.")
                     else:
-                        # today_str = datetime.today().strftime("%d%m%Y")
                         today_str = st.session_state.get("today_str")
-                        if not today_str:  # fallback nếu session chưa có giá trị
+                        if not today_str:
                             today_str = datetime.today().strftime("%d%m%Y")
                             st.session_state["today_str"] = today_str
 
-                        # ✅ Chuẩn hóa ticker thành list để truyền đúng
-                        tickers = weights_df["Ticker"].dropna().unique().tolist()
-                        ticker_str = "_".join(tickers)
+                        rebalance_tickers = weights_df["Ticker"].dropna().unique().tolist()  # ← đổi tên
+                        ticker_str = "_".join(rebalance_tickers)
                         output_path = os.path.join(REPORTS_DIR, f"{ticker_str}_{today_str}_rebalance.pdf")
 
                         try:
-                            # ✅ Gọi đúng chuẩn hàm export_report_pdf với ticker là list
                             pdf_path = reporting.export_report_pdf(
-                                ticker=tickers,  # ✅ truyền đúng list
+                                ticker=rebalance_tickers,  # ← dùng tên mới
                                 weights_df=weights_df,
-                                
                                 output_path=output_path,
                                 include_rebalance=True,
                                 include_backtest=False,
@@ -2379,210 +2529,372 @@ def page_home():
 
                         except Exception as e:
                             st.error(f"❌ Lỗi khi xuất báo cáo Tái cân bằng: {e}")
-
-
-     
         # ---------------------------------------------------------------------------
         # ⚙️ TAB 1 – Huấn luyện mô hình (từng mã, bulk & tự động)
         # ---------------------------------------------------------------------------
-       
-
-        TRADING_DAYS_PER_YEAR = 252
-
-        # -------------------------
-        # Helpers
-        # -------------------------
-        def get_training_config_from_df(df_close: pd.DataFrame):
-            df = df_close.dropna(subset=["Close"]).copy()
-            n_valid = len(df)
-            if n_valid < 60:
-                raise ValueError("Không đủ dữ liệu (cần >= 60 dòng có Close).")
-            years_avail = n_valid // TRADING_DAYS_PER_YEAR
-            train_years = min(max(years_avail, 1), 3)
-            lookback, forecast_days = (60, 90) if train_years == 1 else (60, 180) if train_years == 2 else (90, 180)
-            train_size = min(n_valid, train_years * TRADING_DAYS_PER_YEAR)
-            df_train = df.tail(train_size).copy()
-            cfg = {
-                "train_years": train_years,
-                "lookback": lookback,
-                "forecast_days": forecast_days,
-                "train_size": len(df_train),
-                "yesterday": pd.Timestamp.today().normalize() - pd.Timedelta(days=1)
-            }
-            return df_train, cfg
-
-        def quick_validate_lstm(df_sub: pd.DataFrame, lookback: int, horizon: int, quick_epochs: int = 5, batch_size: int = 16):
-            
+        
+        def quick_validate_lstm(
+            df_sub: pd.DataFrame,
+            lookback: int,
+            horizon: int,
+            quick_epochs: int = 5,
+            batch_size: int = 16
+        ):
             df = df_sub.dropna(subset=["Close"]).copy()
-            data = df["Close"].values.reshape(-1, 1)
-            scaler = MinMaxScaler().fit(data)
-            scaled = scaler.transform(data)
-            if len(scaled) <= lookback:
+            values = df["Close"].values.astype(float).reshape(-1, 1)
+
+            n = len(values)
+            if n <= lookback + 5:
                 raise ValueError("Không đủ dữ liệu cho lookback này.")
 
-            X = np.array([scaled[i-lookback:i,0] for i in range(lookback,len(scaled))])
-            y = np.array([scaled[i,0] for i in range(lookback,len(scaled))])
-            X = X.reshape((X.shape[0], X.shape[1], 1))
+            # -------------------------
+            # SCALE (fit only on train portion to reduce leakage)
+            # -------------------------
+            split = int(n * 0.8)
 
-            model = Sequential([LSTM(16, input_shape=(X.shape[1],1)), Dense(1)])
-            model.compile(optimizer="adam", loss="mean_squared_error")
-            model.fit(X, y, epochs=quick_epochs, batch_size=batch_size, verbose=0,
-                    callbacks=[EarlyStopping(monitor="loss", patience=2, restore_best_weights=True)])
+            scaler = MinMaxScaler()
+            scaler.fit(values[:split])
 
-            n_eval = min(20, X.shape[0])
-            preds = [scaler.inverse_transform([[model.predict(X[i:i+1], verbose=0)[0,0]]])[0,0] for i in range(X.shape[0]-n_eval,X.shape[0])]
-            trues = [scaler.inverse_transform([[y[i]]])[0,0] for i in range(X.shape[0]-n_eval,X.shape[0])]
-            if not preds:
-                raise ValueError("Không đủ điểm đánh giá.")
-            return float(np.sqrt(np.mean((np.array(trues)-np.array(preds))**2)))
+            scaled = scaler.transform(values)
 
-        # =====LSTM=====
-        #     return rmse, mape
-        def evaluate_lstm_insample(model, scaler, df_train, lookback, n_eval=30):
+            # -------------------------
+            # VECTORIZE WINDOWING
+            # -------------------------
+            X, y = [], []
+
+            for i in range(lookback, len(scaled)):
+                X.append(scaled[i - lookback:i, 0])
+                y.append(scaled[i, 0])
+
+            X = np.array(X, dtype=np.float32).reshape(-1, lookback, 1)
+            y = np.array(y, dtype=np.float32)
+
+            # -------------------------
+            # MODEL (minimal LSTM — dùng Input layer đồng nhất kiến trúc)
+            # -------------------------
+            model = Sequential([
+                Input(shape=(lookback, 1)),
+                LSTM(16),
+                Dense(1)
+            ])
+
+            model.compile(optimizer="adam", loss="mse")
+
+            model.fit(
+                X[:split - lookback],
+                y[:split - lookback],
+                epochs=quick_epochs,
+                batch_size=batch_size,
+                verbose=0,
+                callbacks=[
+                    EarlyStopping(monitor="loss", patience=2, restore_best_weights=True)
+                ]
+            )
+
+            # -------------------------
+            # EVAL (last window only)
+            # -------------------------
+            n_eval = min(20, len(X) - split)
+
+            if n_eval <= 0:
+                raise ValueError("Không đủ điểm evaluate.")
+
+            X_eval = X[-n_eval:]
+            y_eval = y[-n_eval:]
+
+            preds = model.predict(X_eval, verbose=0).flatten()
+
+            # -------------------------
+            # RMSE (scaled space → stable, no inverse transform needed)
+            # -------------------------
+            rmse = np.sqrt(np.mean((y_eval - preds) ** 2))
+
+            return float(rmse)
+
+
+        # -------------------------
+        # Private shared evaluator — DRY, dùng cho cả LSTM và TCN
+        # -------------------------
+        def _evaluate_model_insample(model, bundle: dict, df_train: pd.DataFrame,
+                                    lookback: int, n_eval: int = 30):
             """
-            Đánh giá LSTM trên dữ liệu insample với multi-output.
-            Trả về dict RMSE và MAPE cho từng cột đã train.
+            In-sample evaluation cho bất kỳ multi-output model nào (LSTM hoặc TCN).
+
+            Bundle mới (log_return_v2) là dict với keys:
+                "scaler"         : RobustScaler fit trên log return (n-1, 5)
+                "encoding"       : "log_return_v2"
+                "required_cols"  : ["Open", "High", "Low", "Close", "Volume"]
+
+            Pipeline:
+            1. Tính log return (n-1, 5) từ df_train — đồng nhất với train pipeline.
+            2. Scale bằng bundle["scaler"].
+            3. Build batch input (look_back, 5) từ scaled.
+            4. Predict một lần (vectorized).
+            5. Inverse scale bằng bundle["scaler"].inverse_transform.
+            6. Reconstruct OHLCV thực tế từ log return inverse + anchor từng bước.
+            7. Tính RMSE và MAPE trên OHLCV thực tế.
+
+            Returns (rmse, mape) mỗi cái là dict {col: value} hoặc (None, None)
+            nếu không đủ dữ liệu hoặc bundle không hợp lệ.
             """
-            # Lấy danh sách cột từ scaler
-            if not hasattr(scaler, "feature_names_in_"):
+            # --- Validate bundle ---
+            if not isinstance(bundle, dict):
                 return None, None
-            available_cols = list(scaler.feature_names_in_)
-
-            # data_vals = df_train[available_cols].values
-            # scaled = scaler.transform(data_vals)
-
-            data_vals = df_train[available_cols].to_numpy()
-            scaled = scaler.transform(data_vals)
-            if len(scaled) <= lookback:
+            if bundle.get("encoding") != "log_return_v2":
+                return None, None
+            if "scaler" not in bundle or not hasattr(bundle["scaler"], "center_"):
                 return None, None
 
-            max_preds = len(scaled) - lookback
-            n_eval = min(n_eval, max_preds)
+            required_cols = bundle.get("required_cols", [])
+            if not required_cols:
+                return None, None
 
-            preds_arr = {col: [] for col in available_cols}
-            trues_arr = {col: [] for col in available_cols}
+            # --- Validate df_train có đủ cột ---
+            missing = [c for c in required_cols if c not in df_train.columns]
+            if missing:
+                return None, None
 
-            for i in range(max_preds - n_eval, max_preds):
-                X = scaled[i:i+lookback].reshape(1, lookback, len(available_cols))
-                pred_scaled = model.predict(X, verbose=0)[0]
+            # --- Tính log return — đồng nhất với train pipeline ---
+            # Import tại chỗ — _compute_log_returns là hàm nội bộ của utils.lstm_model
+            try:
+                from utils.lstm_model import _compute_log_returns
+                returns = _compute_log_returns(df_train[required_cols].copy())
+            except Exception as e:
+                return None, None
 
-                # Kiểm tra số chiều dự báo
-                if len(pred_scaled) != len(available_cols):
-                    continue
+            # n-1 rows sau khi tính log return
+            n_scaled = len(returns)   # n-1
 
-                pred_real = scaler.inverse_transform([pred_scaled])[0]
+            if n_scaled <= lookback + 5:
+                return None, None
 
-                for j, col in enumerate(available_cols):
-                    preds_arr[col].append(pred_real[j])
-                    trues_arr[col].append(data_vals[i + lookback, j])
+            # --- Scale ---
+            scaled = bundle["scaler"].transform(returns).astype(np.float32)   # (n-1, 5)
+
+            # --- Build batch input (vectorized) ---
+            max_idx = n_scaled - lookback   # số sample tối đa có thể build
+            n_eval  = min(n_eval, max_idx)
+
+            if n_eval <= 0:
+                return None, None
+
+            start = max_idx - n_eval
+
+            X_batch = np.array([
+                scaled[i:i + lookback]
+                for i in range(start, max_idx)
+            ], dtype=np.float32)   # (n_eval, lookback, 5)
+
+            if X_batch.size == 0:
+                return None, None
+
+            # --- Predict in one shot ---
+            # model.n_days có thể > 1 (direct multi-output) — chỉ lấy bước đầu tiên
+            # để so sánh với true value t+1
+            preds_raw = model.predict(X_batch, verbose=0)   # (n_eval, n_days * 5)
+
+            n_features = len(required_cols)   # 5
+
+            if preds_raw.ndim != 2 or preds_raw.shape[1] < n_features:
+                return None, None
+
+            # Lấy n_features đầu tiên = dự báo bước 1 (ngày t+1)
+            # Reshape (n_eval, n_days, 5) rồi lấy bước 0
+            n_days_model = preds_raw.shape[1] // n_features
+            preds_step1  = preds_raw.reshape(preds_raw.shape[0], n_days_model, n_features)[:, 0, :]
+            # (n_eval, 5) — log return scaled của bước t+1
+
+            # --- Inverse scale → log return space ---
+            preds_lr = bundle["scaler"].inverse_transform(preds_step1)   # (n_eval, 5)
+
+            # Winsorize sau inverse — đồng nhất với _inverse_scale_sequence
+            preds_lr = np.clip(preds_lr, -0.15, 0.15)
+
+            # --- True log return bước t+1 ---
+            # true_lr[j] = returns[start + j + lookback] (log return của ngày sau window j)
+            true_lr_idx = [start + j + lookback for j in range(n_eval)
+                        if start + j + lookback < n_scaled]
+            n_eval = len(true_lr_idx)   # cập nhật nếu bị trim
+
+            if n_eval == 0:
+                return None, None
+
+            true_lr    = returns[true_lr_idx]        # (n_eval, 5)
+            preds_lr   = preds_lr[:n_eval]           # align
+
+            # --- Reconstruct OHLCV thực tế từ log return ---
+            # Anchor: Close và log1p(Volume) của ngày cuối window mỗi sample
+            # scaled[i:i+lookback] → anchor là df_train row tương ứng
+            # df_train row tương ứng với returns[i+lookback-1] là df_train.iloc[i+lookback]
+            # (vì returns[k] = return từ df_train.iloc[k] → df_train.iloc[k+1])
+
+            closes_raw      = df_train["Close"].to_numpy(dtype=np.float64)
+            log_volumes_raw = np.log1p(df_train["Volume"].to_numpy(dtype=np.float64))
 
             rmse = {}
             mape = {}
-            for col in available_cols:
-                if preds_arr[col]:  # tránh chia 0 nếu không có dữ liệu
-                    pred = np.array(preds_arr[col])
-                    true = np.array(trues_arr[col])
-                    rmse[col] = float(np.sqrt(np.mean((true - pred) ** 2)))
-                    mape[col] = float(np.mean(np.abs((true - pred) / true))) * 100
+            eps  = 1e-8
+
+            # Reconstruct per sample — anchor-based (1 bước, không tích lũy)
+            pred_ohlcv = np.zeros((n_eval, n_features), dtype=np.float64)
+            true_ohlcv = np.zeros((n_eval, n_features), dtype=np.float64)
+
+            for j in range(n_eval):
+                # anchor_idx trong df_train: row tương ứng với kết thúc window
+                # returns[start + j + lookback - 1] = return từ df_train[start+j+lookback-1] → df_train[start+j+lookback]
+                # → anchor là df_train.iloc[start + j + lookback] (ngày cuối đã biết)
+                anchor_df_idx = start + j + lookback   # index trong df_train
+
+                if anchor_df_idx >= len(closes_raw):
+                    n_eval = j
+                    break
+
+                anchor_close     = closes_raw[anchor_df_idx]
+                anchor_log_vol   = log_volumes_raw[anchor_df_idx]
+
+                # Predicted — bước t+1 từ anchor
+                pr = preds_lr[j]
+                C_pred = anchor_close * np.exp(pr[0])
+                H_pred = C_pred * np.exp(np.abs(pr[1]))
+                L_pred = C_pred * np.exp(-np.abs(pr[2]))
+                O_pred = anchor_close * np.exp(pr[3])
+                lv_pred = np.clip(anchor_log_vol + pr[4], 0.0, None)
+                V_pred = max(np.expm1(lv_pred), 0.0)
+
+                pred_ohlcv[j] = [O_pred, H_pred, L_pred, C_pred, V_pred]
+
+                # True — từ log return thực tế bước t+1
+                tr = true_lr[j]
+                C_true = anchor_close * np.exp(tr[0])
+                H_true = C_true * np.exp(np.abs(tr[1]))
+                L_true = C_true * np.exp(-np.abs(tr[2]))
+                O_true = anchor_close * np.exp(tr[3])
+                lv_true = np.clip(anchor_log_vol + tr[4], 0.0, None)
+                V_true = max(np.expm1(lv_true), 0.0)
+
+                true_ohlcv[j] = [O_true, H_true, L_true, C_true, V_true]
+
+            if n_eval == 0:
+                return None, None
+
+            pred_ohlcv = pred_ohlcv[:n_eval]
+            true_ohlcv = true_ohlcv[:n_eval]
+
+            # --- Vectorized metrics ---
+            for j, col in enumerate(required_cols):
+                pred = pred_ohlcv[:, j]
+                true = true_ohlcv[:, j]
+                diff = true - pred
+
+                rmse[col] = float(np.sqrt(np.mean(diff ** 2)))
+
+                denom     = np.where(np.abs(true) > eps, true, np.nan)
+                mape[col] = float(np.nanmean(np.abs(diff / denom)) * 100)
 
             return rmse, mape
-        
-        # =====TCN=====
-        def evaluate_tcn_insample(model, scaler, df_train, lookback, n_eval=30):
-            """
-            Đánh giá TCN trên dữ liệu insample với multi-output.
-            Trả về dict RMSE và MAPE cho từng cột đã train.
-            """
-            # Lấy danh sách cột từ scaler
-            if not hasattr(scaler, "feature_names_in_"):
-                return None, None
-            available_cols = list(scaler.feature_names_in_)
 
-            # data_vals = df_train[available_cols].values
-            # scaled = scaler.transform(data_vals)
-            data_vals = df_train[available_cols].to_numpy()
-            scaled = scaler.transform(data_vals)
 
-            if len(scaled) <= lookback:
-                return None, None
+        def evaluate_lstm_insample(model, bundle: dict, df_train: pd.DataFrame,
+                                    lookback: int, n_eval: int = 30):
+            """In-sample evaluation cho LSTM multi-output."""
+            return _evaluate_model_insample(model, bundle, df_train, lookback, n_eval)
 
-            max_preds = len(scaled) - lookback
-            n_eval = min(n_eval, max_preds)
 
-            preds_arr = {col: [] for col in available_cols}
-            trues_arr = {col: [] for col in available_cols}
+        def evaluate_tcn_insample(model, bundle: dict, df_train: pd.DataFrame,
+                                lookback: int, n_eval: int = 30):
+            """In-sample evaluation cho TCN multi-output."""
+            return _evaluate_model_insample(model, bundle, df_train, lookback, n_eval)
 
-            for i in range(max_preds - n_eval, max_preds):
-                X = scaled[i:i+lookback].reshape(1, lookback, len(available_cols))
-                pred_scaled = model.predict(X, verbose=0)[0]
-
-                # Kiểm tra số chiều dự báo
-                if len(pred_scaled) != len(available_cols):
-                    continue
-
-                pred_real = scaler.inverse_transform([pred_scaled])[0]
-
-                for j, col in enumerate(available_cols):
-                    preds_arr[col].append(pred_real[j])
-                    trues_arr[col].append(data_vals[i + lookback, j])
-
-            rmse = {}
-            mape = {}
-            for col in available_cols:
-                if preds_arr[col]:  # tránh chia 0 nếu không có dữ liệu
-                    pred = np.array(preds_arr[col])
-                    true = np.array(trues_arr[col])
-                    rmse[col] = float(np.sqrt(np.mean((true - pred) ** 2)))
-                    mape[col] = float(np.mean(np.abs((true - pred) / true))) * 100
-
-            return rmse, mape
-
-        # ===========
 
         def auto_optimize_training_params_wrapper(df_clean):
-            best_cfg, min_rmse = {"years":1,"lookback":60,"horizon":90}, float("inf")
-            for yrs in [1,2,3]:
-                df_sub = df_clean[df_clean["Date"] >= df_clean["Date"].max() - pd.DateOffset(years=yrs)]
-                if len(df_sub) < 60: continue
-                for lb in [30,60,90]:
-                    for hz in [90,120,180]:
-                        try:
-                            rmse = quick_validate_lstm(df_sub, lookback=lb, horizon=hz)
-                            if rmse < min_rmse:
-                                min_rmse, best_cfg = rmse, {"years":yrs,"lookback":lb,"horizon":hz}
-                        except Exception:
+            """
+            Optimized hyperparameter search cho LSTM config.
+            Faster + reduced search space + early pruning.
+            """
+            base_cfg = {"years": 1, "lookback": 60, "horizon": 90}
+            best_cfg = base_cfg.copy()
+            min_rmse = float("inf")
+
+            if "Date" not in df_clean.columns:
+                return best_cfg, None
+
+            df_clean    = df_clean.sort_values("Date")
+            latest_date = df_clean["Date"].max()
+
+            # -----------------------------
+            # REDUCED SEARCH SPACE
+            # -----------------------------
+            year_grid     = [1, 2, 3]
+            lookback_grid = [30, 60, 90]
+            horizon       = 90  # fixed — không ảnh hưởng quick_validate
+
+            for yrs in year_grid:
+                df_sub = df_clean[
+                    df_clean["Date"] >= latest_date - pd.DateOffset(years=yrs)
+                ]
+
+                if len(df_sub) < MIN_ROWS:
+                    continue
+
+                if len(df_sub) < 120 and yrs > 1:
+                    continue
+
+                for lb in lookback_grid:
+                    if len(df_sub) <= lb + 20:
+                        continue
+
+                    try:
+                        rmse = quick_validate_lstm(df_sub, lookback=lb, horizon=horizon)
+
+                        if rmse is None or np.isnan(rmse):
                             continue
+
+                        # early pruning
+                        if rmse > min_rmse * 1.2:
+                            continue
+
+                        if rmse < min_rmse:
+                            min_rmse = rmse
+                            best_cfg = {"years": yrs, "lookback": lb, "horizon": horizon}
+
+                    except Exception as e:
+                        # log lỗi thay vì nuốt thầm lặng
+                        print(f"⚠️ quick_validate_lstm failed (yrs={yrs}, lb={lb}): {e}")
+                        continue
+
             return best_cfg, (min_rmse if min_rmse != float("inf") else None)
-        
+
 
         def find_tickers_missing_predicted_close(ticker_list=None, min_days=60):
             """
-            Quét toàn bộ DB, kiểm tra bảng nào có < min_days dòng Predicted_Close
-            tính đến hết ngày hôm qua.
+            Quét DB, kiểm tra ticker nào có < min_days Predicted_Close đến hết hôm qua.
             """
-            missing = []
             try:
-                tables = db.list_tables()
+                tables = ticker_list or db.list_tables()
             except Exception as e:
                 print(f"⚠️ Không lấy được danh sách bảng: {e}")
                 return []
 
-            cutoff = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+            missing = []
+            cutoff  = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
 
             for tk in tables:
                 try:
-                    dfpf = db.load_forecast(tk)
-                    if dfpf is None or dfpf.empty or "Predicted_Close" not in dfpf.columns:
+                    df = db.load_forecast(tk)
+
+                    if df is None or df.empty:
                         missing.append(tk)
                         continue
 
-                    # Lọc dữ liệu đến hết hôm qua
-                    df_hist = dfpf[dfpf["Date"] <= cutoff]
+                    if "Predicted_Close" not in df.columns or "Date" not in df.columns:
+                        missing.append(tk)
+                        continue
 
-                    # Đếm số dòng Predicted_Close có dữ liệu
-                    count_pred = df_hist["Predicted_Close"].notna().sum()
+                    date_mask = df["Date"].to_numpy() <= cutoff
+                    pred      = df["Predicted_Close"].to_numpy()
+                    count     = np.sum(date_mask & ~pd.isna(pred))
 
-                    if count_pred < min_days:
+                    if count < min_days:
                         missing.append(tk)
 
                 except Exception:
@@ -2590,471 +2902,300 @@ def page_home():
 
             return missing
 
-     
-        # =====LSTM====    return preds
-        def generate_lstm_preds(df_clean, model, scaler, lookback, horizon, ticker):
-            """
-            Sinh dự báo LSTM multi-output dựa trên các cột đã train.
-            Trả về list tuple: (Date, Predicted_Open, Predicted_High, ..., Ticker)
-            """
-            df_full = df_clean.copy()
 
-            # Lấy danh sách cột đã train từ scaler
-            if not hasattr(scaler, "feature_names_in_"):
-                return []  # scaler không có metadata => bỏ qua dự báo
-            available_cols = list(scaler.feature_names_in_)
+        # -------------------------
+        # bulk_or_auto_train — single source of truth cho train + predict + save
+        # -------------------------
+        def bulk_or_auto_train(
+            ticker_list,
+            model_type="LSTM",
+            epochs=50,
+            batch_size=16,
+            n_days=7,
+            auto_optimize=False,
+            source="vnstock"
+        ):
+            logs = []
 
-            # Chuẩn hóa dữ liệu input
-            data_vals = df_full[available_cols].values
-            scaled = scaler.transform(data_vals)
+            model_map = {
+                "LSTM": (train_lstm_model, evaluate_lstm_insample, predict_lstm),
+                "TCN":  (train_tcn_model,  evaluate_tcn_insample,  predict_tcn)
+            }
 
-            # Dự báo trên horizon ngày cuối cùng
-            candidate_dates = df_full["Date"].iloc[max(0, len(df_full) - horizon):].tolist()
-            preds = []
+            for ticker in ticker_list:
+                try:
+                    # ======================
+                    # LOAD + CLEAN
+                    # ======================
+                    df_raw   = load_data_dl(ticker, source=source)
+                    df_clean = clean_dataframe(df_raw, ticker)
 
-            for day in candidate_dates:
-                idxs = df_full.index[df_full["Date"] == day].tolist()
-                if not idxs:
-                    continue
-                idx = idxs[0]
+                    if df_clean is None or df_clean.empty:
+                        logs.append({"Ticker": ticker, "Status": "❌ Empty data"})
+                        continue
 
-                # Bỏ qua weekend hoặc không đủ lookback
-                if day.weekday() >= 5 or idx - lookback < 0:
-                    continue
+                    df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
+                    df_clean = df_clean.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 
-                window = scaled[idx - lookback: idx]
-                if window.shape[0] < lookback:
-                    continue
+                    # ======================
+                    # CONFIG (AUTO / MANUAL)
+                    # ======================
+                    if auto_optimize:
+                        try:
+                            best_cfg, _ = auto_optimize_training_params_wrapper(df_clean)
+                        except Exception as e:
+                            print(f"⚠️ auto_optimize failed for {ticker}: {e}")
+                            df_train, cfg = get_training_config_from_df(df_clean)
+                            best_cfg = {
+                                "years":   cfg["train_years"],
+                                "lookback": cfg["lookback"],
+                                "horizon":  n_days
+                            }
 
-                # Predict
-                X = window.reshape(1, lookback, len(available_cols))
-                pred_scaled = model.predict(X, verbose=0)[0]  # shape: (n_features,)
+                        cutoff   = df_clean["Date"].max() - pd.DateOffset(years=best_cfg["years"])
+                        df_train = df_clean[df_clean["Date"] >= cutoff].copy()
+                        lookback = best_cfg["lookback"]
+                        horizon  = n_days   # n_days do caller truyền — đồng bộ với tab dự báo
 
-                if len(pred_scaled) != len(available_cols):
-                    continue  # tránh lỗi mismatch
+                    else:
+                        df_train, cfg = get_training_config_from_df(df_clean)
+                        lookback = cfg["lookback"]
+                        horizon  = n_days   # n_days do caller truyền — đồng bộ với tab dự báo
 
-                pred_real = scaler.inverse_transform([pred_scaled])[0]
+                    # MIN_ROWS thay cho 60 — khớp với _validate_df trong lstm/tcn model
+                    if len(df_train) < MIN_ROWS:
+                        logs.append({
+                            "Ticker": ticker,
+                            "Status": f"❌ Not enough data (cần {MIN_ROWS}, có {len(df_train)})"
+                        })
+                        continue
 
-                # Tạo tuple (Date, Predicted_*..., Ticker)
-                row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                preds.append(tuple(row_tuple))
+                    # ======================
+                    # MODEL SWITCH
+                    # ======================
+                    if model_type not in model_map:
+                        logs.append({"Ticker": ticker, "Status": f"❌ Unsupported model {model_type}"})
+                        continue
 
-            return preds
+                    train_fn, eval_fn, predict_fn = model_map[model_type]
 
-        # =====TCN====    return preds
-        def generate_tcn_preds(df_clean, model, scaler, lookback, horizon, ticker):
-            """
-            Sinh dự báo TCN multi-output dựa trên các cột đã train.
-            Trả về list tuple: (Date, Predicted_Open, Predicted_High, ..., Ticker)
-            """
-            df_full = df_clean.copy()
+                    # ======================
+                    # TRAIN
+                    # n_days=horizon phải khớp với predict_fn bên dưới
+                    # ======================
+                    model, bundle = train_fn(
+                        df_train,
+                        ticker=ticker,
+                        epochs=epochs,
+                        batch_size=batch_size,
+                        look_back=lookback,
+                        n_days=horizon
+                    )
 
-            # Lấy danh sách cột đã train từ scaler
-            if not hasattr(scaler, "feature_names_in_"):
-                return []  # scaler không có metadata => bỏ qua dự báo
-            available_cols = list(scaler.feature_names_in_)
+                    # ======================
+                    # EVALUATE
+                    # bundle là dict — truyền trực tiếp vào eval_fn
+                    # ======================
+                    rmse, mape = eval_fn(model, bundle, df_train, lookback)
 
-            # Chuẩn hóa dữ liệu input
-            data_vals = df_full[available_cols].values
-            scaled = scaler.transform(data_vals)
+                    # ======================
+                    # FORECAST — gọi predict_fn (single source of truth, không duplicate)
+                    # n_days=horizon phải khớp với model.n_days đã train
+                    # ======================
+                    forecast_df = predict_fn(df_clean, model, bundle, ticker, n_days=horizon)
 
-            # Dự báo trên horizon ngày cuối cùng
-            candidate_dates = df_full["Date"].iloc[max(0, len(df_full) - horizon):].tolist()
-            preds = []
+                    if forecast_df is None or forecast_df.empty:
+                        logs.append({"Ticker": ticker, "Status": "⚠️ No forecast"})
+                        continue
 
-            for day in candidate_dates:
-                idxs = df_full.index[df_full["Date"] == day].tolist()
-                if not idxs:
-                    continue
-                idx = idxs[0]
+                    db.save_forecast_last(ticker, forecast_df)
 
-                # Bỏ qua weekend hoặc không đủ lookback
-                if day.weekday() >= 5 or idx - lookback < 0:
-                    continue
+                    # ======================
+                    # LOG RESULT
+                    # ======================
+                    required_cols = ["Open", "High", "Low", "Close", "Volume"]
+                    logs.append({
+                        "Ticker": ticker,
+                        "Status": "✅ Success",
+                        "RMSE": (
+                            {c: round(rmse.get(c, 0), 4) for c in required_cols}
+                            if isinstance(rmse, dict) else None
+                        ),
+                        "MAPE": (
+                            {c: round(mape.get(c, 0), 2) for c in required_cols}
+                            if isinstance(mape, dict) else None
+                        )
+                    })
 
-                window = scaled[idx - lookback: idx]
-                if window.shape[0] < lookback:
-                    continue
+                except Exception as e:
+                    logs.append({"Ticker": ticker, "Status": f"❌ {str(e)}"})
 
-                # Predict
-                X = window.reshape(1, lookback, len(available_cols))
-                pred_scaled = model.predict(X, verbose=0)[0]  # shape: (n_features,)
+            return logs
 
-                if len(pred_scaled) != len(available_cols):
-                    continue  # tránh lỗi mismatch
-
-                pred_real = scaler.inverse_transform([pred_scaled])[0]
-
-                # Tạo tuple (Date, Predicted_*..., Ticker)
-                row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                preds.append(tuple(row_tuple))
-
-            return preds
 
         # -------------------------
         # Streamlit Tabs
         # -------------------------
-        # ----------------- Helpers -----------------
-        def bulk_or_auto_train(ticker_list, model_type="LSTM", epochs=50, batch_size=16, auto_optimize=False, source="yf"):
-            logs = []
-            for ticker in ticker_list:
-                try:
-                    # df_raw = load_data_yf(ticker)
-                    df_raw = load_data_dl(ticker, source=source)
-                    df_clean = clean_dataframe(df_raw, ticker)
-                    if auto_optimize:
-                        try:
-                            best_cfg, _ = auto_optimize_training_params_wrapper(df_clean)
-                        except Exception:
-                            df_train, cfg = get_training_config_from_df(df_clean)
-                            best_cfg = {"years": cfg["train_years"], "lookback": cfg["lookback"], "horizon": cfg["forecast_days"]}
-                        df_train = df_clean[df_clean["Date"] >= (df_clean["Date"].max() - pd.DateOffset(years=best_cfg["years"]))]
-                        lookback, horizon = best_cfg["lookback"], best_cfg["horizon"]
-                    else:
-                        df_train, cfg = get_training_config_from_df(df_clean)
-                        lookback, horizon = cfg["lookback"], cfg["forecast_days"]
-
-                    
-                    if model_type == "LSTM":
-                        # Train multi-output model
-                        model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=epochs, batch_size=batch_size, look_back=cfg["lookback"])
-
-                        # Lấy danh sách các cột đã train
-                        if not hasattr(scaler, "feature_names_in_"):
-                            logs.append({"Ticker": ticker, "Status": "⚠️ Scaler không có thông tin cột, cần train lại."})
-                            continue
-                        available_cols = list(scaler.feature_names_in_)
-                        pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                        # Đánh giá insample multi-output
-                        rmse, mape = evaluate_lstm_insample(model, scaler, df_train, lookback)
-
-                        # Dự báo multi-output
-                        preds = generate_lstm_preds(df_clean, model, scaler, lookback, horizon, ticker)
-
-                        if preds:
-                            df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                            db.save_forecast_last(ticker, df_forecast)
-                            logs.append({
-                                "Ticker": ticker,
-                                "Status": "✅ Success",
-                                "RMSE": {col: round(rmse.get(col, None), 4) for col in available_cols} if rmse else None,
-                                "MAPE": {col: round(mape.get(col, None), 2) for col in available_cols} if mape else None
-                            })
-                        else:
-                            logs.append({"Ticker": ticker, "Status": "⚠️ No preds"})
-                    # ====TCN====
-                    elif model_type == "TCN":
-                        # Train multi-output TCN
-                        model, scaler = train_tcn_model(
-                            df_train,
-                            ticker=ticker,
-                            epochs=epochs,
-                            batch_size=batch_size,
-                            look_back=cfg["lookback"]
-                        )
-
-                        # Lấy danh sách các cột đã train
-                        if not hasattr(scaler, "feature_names_in_"):
-                            logs.append({"Ticker": ticker, "Status": "⚠️ Scaler không có thông tin cột, cần train lại."})
-                            continue
-                        available_cols = list(scaler.feature_names_in_)
-                        pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                        # Đánh giá insample
-                        rmse, mape = evaluate_tcn_insample(model, scaler, df_train, cfg["lookback"])
-
-                        # Dự báo multi-output
-                        preds = generate_tcn_preds(df_clean, model, scaler, cfg["lookback"], cfg["forecast_days"], ticker)
-
-                        if preds:
-                            df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                            db.save_forecast_last(ticker, df_forecast)
-                            logs.append({
-                                "Ticker": ticker,
-                                "Status": "✅ Success",
-                                "RMSE": {col: round(rmse.get(col, None), 4) for col in available_cols} if rmse else None,
-                                "MAPE": {col: round(mape.get(col, None), 2) for col in available_cols} if mape else None
-                            })
-                        else:
-                            logs.append({"Ticker": ticker, "Status": "⚠️ No preds"})
-
-                    # ===========
-
-                    
-                except Exception as e:
-                    logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
-            return logs
-
-        # ----------------- Streamlit Tabs -----------------
         if "train" in tab_map:
             with tabs[tab_map["train"]]:
                 st.header("🔧 Huấn luyện mô hình dự báo")
-                tab1, tab2, tab3 = st.tabs(["📌 Huấn luyện từng mã", "🔁 Huấn luyện lại toàn bộ", "⚙️ Quản lý & huấn luyện tự động"])
+                tab1, tab2, tab3 = st.tabs([
+                    "📌 Huấn luyện từng mã",
+                    "🔁 Huấn luyện lại toàn bộ",
+                    "⚙️ Quản lý & huấn luyện tự động"
+                ])
 
-                
                 # -------------------------
-                # TAB 1: Quản lý & huấn luyện từng mã
+                # TAB 1: Huấn luyện từng mã
                 # -------------------------
                 with tab1:
-                    # st.subheader("🔧 Huấn luyện theo từng mã")
-                    source = "yf"
+                    source = data_source #"yf"
                     st.caption("Chọn mã cổ phiếu và mô hình để huấn luyện, kết quả sẽ lưu làm Backtest.")
                     with st.expander("ℹ️ Help: Huấn luyện từng mã"):
                         st.markdown(
                             "- **Mục đích**: Huấn luyện riêng lẻ 1 mã để cập nhật Backtest. Huấn luyện lại có thể làm cho mô hình học sâu hơn với các chỉ số dự báo OHLCV.\n"
-                            "- **LSTM**: cần ít nhất 60 dòng OHLCV; sẽ huấn luyện học máy và lưu dự báo vào Backtest.\n"
-                            "- **TCN**: cần ít nhất 60 dòng OHLCV; sẽ huấn luyện học máy và lưu dự báo vào Backtest.\n"
+                            "- **LSTM**: cần ít nhất 252 dòng OHLCV; sẽ huấn luyện học máy và lưu dự báo vào Backtest.\n"
+                            "- **TCN**: cần ít nhất 252 dòng OHLCV; sẽ huấn luyện học máy và lưu dự báo vào Backtest.\n"
                             "- **Epochs/Batch**: chỉ áp dụng cho LSTM và TCN."
                         )
-
 
                     if not valid_tickers:
                         st.warning("⚠️ Không có mã cổ phiếu hợp lệ để chọn.")
                     else:
-                        ticker = st.selectbox("Chọn mã cổ phiếu để huấn luyện:", valid_tickers,
-                                            help="Chọn mã cổ phiếu hợp lệ để huấn luyện mô hình dự báo.",
-                                            key="train_model_ticker_select")
+                        ticker = st.selectbox(
+                            "Chọn mã cổ phiếu để huấn luyện:",
+                            valid_tickers,
+                            help="Chọn mã cổ phiếu hợp lệ để huấn luyện mô hình dự báo.",
+                            key="train_model_ticker_select"
+                        )
 
-                    
                     model_type = st.selectbox(
                         "Chọn mô hình:",
                         ["LSTM", "TCN"],
                         help=(
-                            "LSTM – (Long Short-Term Memory) là một kiến trúc mạng RNN (Recurrent Neural Network) đặc biệt, được thiết kế để học chuỗi thời gian hoặc dữ liệu tuần tự, cần ít nhất 60 dòng dữ liệu.\n"
+                            "LSTM – (Long Short-Term Memory) là một kiến trúc mạng RNN (Recurrent Neural Network) đặc biệt, được thiết kế để học chuỗi thời gian hoặc dữ liệu tuần tự, cần ít nhất 252 dòng dữ liệu.\n"
                             "TCN – (Temporal Convolutional Network) là một mô hình học sâu cho chuỗi thời gian, dựa trên Convolutional Neural Network (CNN) nhưng được thiết kế đặc biệt để xử lý dữ liệu tuần tự, mạnh với chuỗi dài và quan hệ phức tạp."
                         )
                     )
 
-
                     epochs = st.slider(
                         "Số vòng lặp (Epochs)",
-                        min_value=5,
-                        max_value=200,
-                        value=50,
-                        step=5,
+                        min_value=5, max_value=200, value=50, step=5,
                         help="Số lần học trên toàn bộ tập dữ liệu (áp dụng cho LSTM và TCN)."
                     )
 
                     batch_size = st.slider(
                         "Batch size",
-                        min_value=4,
-                        max_value=128,
-                        value=16,
-                        step=4,
+                        min_value=4, max_value=128, value=16, step=4,
                         help="Kích thước tập con dữ liệu cho mỗi lần cập nhật trọng số (áp dụng cho LSTM và TCN)."
                     )
 
-                    
+                    n_days_train1 = st.slider(
+                        "Số ngày dự báo (n_days)",
+                        min_value=7, max_value=30, value=7, step=1,
+                        key="train1_n_days",
+                        help="Số ngày model sẽ học dự báo. Phải khớp với Số ngày dự báo ở tab Dự báo để không phải train lại."
+                    )
+
                     if st.button("🚀 Bắt đầu huấn luyện"):
-                        # run training for selected ticker
                         with st.spinner(f"Đang huấn luyện {model_type} cho {ticker}..."):
                             try:
-                                # df_raw = load_data_yf(ticker)
-                                df_raw = load_data_dl(ticker, source=source)
-                                
+                                # =====================
+                                # LOAD + CLEAN DATA
+                                # =====================
+                                df_raw   = load_data_dl(ticker, source=source)
                                 df_clean = clean_dataframe(df_raw, ticker=ticker)
-                                if df_clean is None:
+
+                                if df_clean is None or df_clean.empty:
                                     st.error(f"❌ Dữ liệu không hợp lệ hoặc không đủ cho {ticker}.")
-                                else:
-                                    # choose config automatically
-                                    df_train, cfg = get_training_config_from_df(df_clean)
-                                    
-                                    if model_type == "LSTM":
-                                        if len(df_train) < 60:
-                                            st.error("⚠️ Không đủ dữ liệu để train LSTM (cần >= 60 ngày).")
-                                        else:
-                                            # Train LSTM multi-output
-                                            
-                                            model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=epochs, batch_size=batch_size, look_back=cfg["lookback"])
-                                            # Tính RMSE/MAPE chỉ cho Close
-                                            rmse, mape = evaluate_lstm_insample(model, scaler, df_train, cfg["lookback"])
+                                    st.stop()
 
-                                            # Lấy giá trị Close nếu rmse/mape là dict
-                                            if isinstance(rmse, dict):
-                                                rmse_close = rmse.get("Close", None)
-                                            else:
-                                                rmse_close = rmse
-                                            if isinstance(mape, dict):
-                                                mape_close = mape.get("Close", None)
-                                            else:
-                                                mape_close = mape
+                                df_clean["Date"] = pd.to_datetime(df_clean["Date"], errors="coerce")
+                                df_clean = df_clean.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
 
-                                            # Dự báo multi-output
-                                            df_full = df_clean.copy()
+                                # =====================
+                                # CONFIG
+                                # =====================
+                                df_train, cfg = get_training_config_from_df(df_clean)
+                                lookback = cfg["lookback"]
 
-                                            # Lấy danh sách cột đã train scaler
-                                            if hasattr(scaler, "feature_names_in_"):
-                                                available_cols = list(scaler.feature_names_in_)
-                                            else:
-                                                st.error("⚠️ Không xác định được các cột scaler đã fit. Vui lòng train lại LSTM.")
-                                                available_cols = []
+                                # MIN_ROWS thay cho 60 — khớp với _validate_df trong lstm/tcn model
+                                if len(df_train) < MIN_ROWS:
+                                    st.error(f"⚠️ Không đủ dữ liệu để train (cần >={MIN_ROWS} dòng, có {len(df_train)}).")
+                                    st.stop()
 
-                                            if not available_cols:
-                                                st.warning("⚠️ Không có cột hợp lệ để dự báo.")
-                                            else:
-                                                # Kiểm tra dữ liệu đầu vào có đầy đủ các cột đã huấn luyện không
-                                                missing_cols = [col for col in available_cols if col not in df_full.columns]
-                                                if missing_cols:
-                                                    st.error(f"⚠️ Dữ liệu dự báo thiếu các cột quan trọng: {missing_cols}. Không thể dự báo.")
-                                                else:
-                                                    pred_cols = [f"Predicted_{col}" for col in available_cols]
+                                # =====================
+                                # MODEL SWITCH
+                                # =====================
+                                model_map = {
+                                    "LSTM": (train_lstm_model, evaluate_lstm_insample, predict_lstm),
+                                    "TCN":  (train_tcn_model,  evaluate_tcn_insample,  predict_tcn)
+                                }
 
-                                                    # Chuẩn bị dữ liệu dự báo
-                                                    data_vals = df_full[available_cols].values
-                                                    scaled = scaler.transform(data_vals)
+                                if model_type not in model_map:
+                                    st.error("❌ Model không hợp lệ")
+                                    st.stop()
 
-                                                    candidate_dates = df_full["Date"].iloc[max(0, len(df_full)-cfg["forecast_days"]):].tolist()
+                                train_fn, eval_fn, predict_fn = model_map[model_type]
 
-                                                    # Tạo batch windows dự báo
-                                                    X_batch = []
-                                                    date_batch = []
-                                                    for idx, day in enumerate(candidate_dates):
-                                                        global_idx = len(df_full) - cfg["forecast_days"] + idx
-                                                        if day.weekday() >= 5:  # skip weekend
-                                                            continue
-                                                        if global_idx - cfg["lookback"] < 0:
-                                                            continue
+                                # =====================
+                                # TRAIN
+                                # n_days=n_days_train1 từ slider — khớp với predict_fn và tab dự báo
+                                # =====================
+                                model, bundle = train_fn(
+                                    df_train,
+                                    ticker=ticker,
+                                    epochs=epochs,
+                                    batch_size=batch_size,
+                                    look_back=lookback,
+                                    n_days=n_days_train1
+                                )
 
-                                                        window = scaled[global_idx - cfg["lookback"]: global_idx]
-                                                        if window.shape[0] == cfg["lookback"]:
-                                                            X_batch.append(window)
-                                                            date_batch.append(day)
+                                # =====================
+                                # EVALUATE
+                                # bundle là dict — truyền trực tiếp, không dùng feature_names_in_
+                                # =====================
+                                rmse, mape = eval_fn(model, bundle, df_train, lookback)
 
-                                                    if X_batch:
-                                                        X_batch = np.array(X_batch).reshape(len(X_batch), cfg["lookback"], len(available_cols))
-                                                        preds_scaled = model.predict(X_batch, verbose=0)
+                                # =====================
+                                # FORECAST — dùng predict_fn (single source of truth)
+                                # n_days=n_days_train1 khớp với model.n_days đã train
+                                # =====================
+                                forecast_df = predict_fn(
+                                    df_clean, model, bundle, ticker,
+                                    n_days=n_days_train1
+                                )
 
-                                                        if preds_scaled.shape[1] != len(available_cols):
-                                                            st.error("⚠️ Số cột dự báo không khớp với scaler, không thể inverse transform")
-                                                        else:
-                                                            preds_real = scaler.inverse_transform(preds_scaled)
+                                if forecast_df is None or forecast_df.empty:
+                                    st.warning("⚠️ Không tạo được dự báo.")
+                                    st.stop()
 
-                                                            df_forecast = pd.DataFrame(
-                                                                [[d.strftime("%Y-%m-%d")] + list(map(float, p)) + [ticker] for d, p in zip(date_batch, preds_real)],
-                                                                columns=["Date"] + pred_cols + ["Ticker"]
-                                                            )
+                                db.save_forecast_last(ticker, forecast_df)
 
-                                                            db.save_forecast_last(ticker, df_forecast)
-                                                            st.success(f"✅ Đã huấn luyện và lưu dự báo multi-output cho {ticker}")
+                                # =====================
+                                # RESULT UI
+                                # =====================
+                                rmse_close = rmse.get("Close") if isinstance(rmse, dict) else rmse
+                                mape_close = mape.get("Close") if isinstance(mape, dict) else mape
 
-                                                            st.write(pd.DataFrame([{
-                                                                "Ticker": ticker,
-                                                                "Years_Used": cfg.get("train_years"),
-                                                                "Lookback": cfg.get("lookback"),
-                                                                "Forecast_Days": cfg.get("forecast_days"),
-                                                                "Train_Samples": cfg.get("train_size"),
-                                                                "RMSE_Close": round(rmse_close, 4) if rmse_close is not None else None,
-                                                                "MAPE_Close (%)": round(mape_close, 2) if mape_close is not None else None
-                                                            }]))
-                                                    else:
-                                                        st.warning("⚠️ Không tạo được dự báo hợp lệ (không đủ window/dữ liệu).")
-                                    # # ====
-                                    elif model_type == "TCN":
-                                        if len(df_train) < 60:
-                                            st.error("⚠️ Không đủ dữ liệu để train TCN (cần >= 60 ngày).")
-                                        else:
-                                            # Train TCN multi-output
-                                            model, scaler = train_tcn_model(
-                                                df_train, 
-                                                ticker=ticker, 
-                                                epochs=epochs, 
-                                                batch_size=batch_size, 
-                                                look_back=cfg["lookback"]
-                                            )
+                                st.success(f"✅ Huấn luyện xong {ticker}")
 
-                                            # Đánh giá nội mẫu
-                                            rmse, mape = evaluate_tcn_insample(model, scaler, df_train, cfg["lookback"])
+                                st.write(pd.DataFrame([{
+                                    "Ticker":          ticker,
+                                    "Lookback":        lookback,
+                                    "Forecast_Days":   n_days_train1,
+                                    "RMSE_Close":      round(rmse_close, 4) if rmse_close is not None else None,
+                                    "MAPE_Close (%)":  round(mape_close, 2) if mape_close is not None else None
+                                }]))
 
-                                            # Lấy giá trị Close nếu rmse/mape là dict
-                                            if isinstance(rmse, dict):
-                                                rmse_close = rmse.get("Close", None)
-                                            else:
-                                                rmse_close = rmse
-                                            if isinstance(mape, dict):
-                                                mape_close = mape.get("Close", None)
-                                            else:
-                                                mape_close = mape
-
-                                            # Dự báo multi-output
-                                            df_full = df_clean.copy()
-
-                                            if hasattr(scaler, "feature_names_in_"):
-                                                available_cols = list(scaler.feature_names_in_)
-                                            else:
-                                                st.error("⚠️ Không xác định được các cột scaler đã fit. Vui lòng train lại TCN.")
-                                                available_cols = []
-
-                                            if not available_cols:
-                                                st.warning("⚠️ Không có cột hợp lệ để dự báo.")
-                                            else:
-                                                # Kiểm tra dữ liệu đầu vào có đầy đủ các cột đã huấn luyện không
-                                                missing_cols = [col for col in available_cols if col not in df_full.columns]
-                                                if missing_cols:
-                                                    st.error(f"⚠️ Dữ liệu dự báo thiếu các cột quan trọng: {missing_cols}. Không thể dự báo.")
-                                                else:
-                                                    pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                                                    data_vals = df_full[available_cols].values
-                                                    scaled = scaler.transform(data_vals)
-
-                                                    candidate_dates = df_full["Date"].iloc[max(0, len(df_full)-cfg["forecast_days"]):].tolist()
-
-                                                    X_batch = []
-                                                    date_batch = []
-                                                    for idx, day in enumerate(candidate_dates):
-                                                        global_idx = len(df_full) - cfg["forecast_days"] + idx
-                                                        if day.weekday() >= 5:  # skip weekend
-                                                            continue
-                                                        if global_idx - cfg["lookback"] < 0:
-                                                            continue
-
-                                                        window = scaled[global_idx - cfg["lookback"]: global_idx]
-                                                        if window.shape[0] == cfg["lookback"]:
-                                                            X_batch.append(window)
-                                                            date_batch.append(day)
-
-                                                    if X_batch:
-                                                        X_batch = np.array(X_batch).reshape(len(X_batch), cfg["lookback"], len(available_cols))
-                                                        preds_scaled = model.predict(X_batch, verbose=0)
-
-                                                        if preds_scaled.shape[1] != len(available_cols):
-                                                            st.error("⚠️ Số cột dự báo không khớp với scaler, không thể inverse transform")
-                                                        else:
-                                                            preds_real = scaler.inverse_transform(preds_scaled)
-
-                                                            df_forecast = pd.DataFrame(
-                                                                [[d.strftime("%Y-%m-%d")] + list(map(float, p)) + [ticker] for d, p in zip(date_batch, preds_real)],
-                                                                columns=["Date"] + pred_cols + ["Ticker"]
-                                                            )
-
-                                                            db.save_forecast_last(ticker, df_forecast)
-                                                            st.success(f"✅ Đã huấn luyện và lưu dự báo multi-output cho {ticker}")
-
-                                                            st.write(pd.DataFrame([{
-                                                                "Ticker": ticker,
-                                                                "Years_Used": cfg.get("train_years"),
-                                                                "Lookback": cfg.get("lookback"),
-                                                                "Forecast_Days": cfg.get("forecast_days"),
-                                                                "Train_Samples": cfg.get("train_size"),
-                                                                "RMSE_Close": round(rmse_close, 4) if rmse_close is not None else None,
-                                                                "MAPE_Close (%)": round(mape_close, 2) if mape_close is not None else None
-                                                            }]))
-                                                    else:
-                                                        st.warning("⚠️ Không tạo được dự báo hợp lệ (không đủ window/dữ liệu).")
-
-
-                                    
                             except Exception as e:
                                 st.error(f"❌ Lỗi huấn luyện {ticker}: {e}")
 
-                
                 # -------------------------
-                # TAB 2: Quản lý & huấn luyện toàn bộ
+                # TAB 2: Huấn luyện toàn bộ — gọi bulk_or_auto_train (single source of truth)
                 # -------------------------
                 with tab2:
-                    # st.subheader("🔁 Huấn luyện lại toàn bộ")
-                    source = "yf"
+                    source = data_source #"yf"
                     st.caption("Huấn luyện lại tất cả các mã hợp lệ, kết quả lưu về DB.")
                     with st.expander("ℹ️ Help: Huấn luyện toàn bộ"):
                         st.markdown(
@@ -3064,432 +3205,114 @@ def page_home():
                         )
 
                     model_type = st.selectbox("Chọn mô hình huấn luyện lại:", ["LSTM", "TCN"], key="bulk_model")
-                    epochs = st.slider("Số vòng lặp (Epochs)", 5, 200, 50, 5, key="bulk_epochs")
+                    epochs     = st.slider("Số vòng lặp (Epochs)", 5, 200, 50, 5, key="bulk_epochs")
                     batch_size = st.slider("Batch size", 4, 128, 16, 4, key="bulk_batch")
+                    n_days_bulk = st.slider(
+                        "Số ngày dự báo (n_days)",
+                        min_value=7, max_value=30, value=7, step=1,
+                        key="bulk_n_days",
+                        help="Số ngày model sẽ học dự báo. Phải khớp với Số ngày dự báo ở tab Dự báo để không phải train lại."
+                    )
 
-                    
                     if st.button("🚀 Bắt đầu huấn luyện lại toàn bộ"):
-                        with st.spinner("Đang huấn luyện lại toàn bộ danh mục... Vui lòng chờ trong giây lát"):
-                            logs = []
+                        with st.spinner("Đang huấn luyện lại toàn bộ danh mục... vui lòng chờ trong giây lát"):
+                            logs = bulk_or_auto_train(
+                                ticker_list=valid_tickers,
+                                model_type=model_type,
+                                epochs=epochs,
+                                batch_size=batch_size,
+                                n_days=n_days_bulk,
+                                auto_optimize=False,
+                                source=source
+                            )
 
-                            for ticker in valid_tickers:
-                                try:
-                                    # df_raw = load_data_yf(ticker)
-                                    df_raw = load_data_dl(ticker, source=source)
-                                    df_clean = clean_dataframe(df_raw, ticker=ticker)
-                                    if df_clean is None:
-                                        logs.append({"Ticker": ticker, "Status": "❌ Không có dữ liệu"})
-                                        continue
-
-                                    df_train, cfg = get_training_config_from_df(df_clean)
-
-                                    # -------------------
-                                    # LSTM
-                                    # -------------------
-                                    if model_type == "LSTM":
-                                        if len(df_train) < 60:
-                                            logs.append({"Ticker": ticker, "Status": "❌ Dữ liệu quá ít"})
-                                            continue
-
-                                        # Train multi-output LSTM
-                                        model, scaler = train_lstm_model(
-                                            df_train,
-                                            ticker=ticker,
-                                            epochs=epochs,
-                                            batch_size=batch_size,
-                                            look_back=cfg["lookback"]
-                                        )
-
-                                        # Đánh giá insample multi-output
-                                        rmse, mape = evaluate_lstm_insample(model, scaler, df_train, cfg["lookback"])
-
-                                        # Dự báo multi-output
-                                        df_full = df_clean.copy()
-
-                                        # Lấy danh sách các cột đã train
-                                        if hasattr(scaler, "feature_names_in_"):
-                                            available_cols = list(scaler.feature_names_in_)
-                                        else:
-                                            logs.append({"Ticker": ticker, "Status": "❌ Không xác định được cột scaler"})
-                                            continue
-
-                                        # Kiểm tra dữ liệu có đủ cột không
-                                        missing_cols = [col for col in available_cols if col not in df_full.columns]
-                                        if missing_cols:
-                                            logs.append({"Ticker": ticker, "Status": f"❌ Thiếu cột {missing_cols}"})
-                                            continue
-
-                                        pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                                        # Chuẩn hóa dữ liệu input
-                                        data_vals = df_full[available_cols].values
-                                        scaled = scaler.transform(data_vals)
-                                        candidate_dates = df_full["Date"].iloc[max(0, len(df_full) - cfg["forecast_days"]):].tolist()
-
-                                        preds = []
-                                        for day in candidate_dates:
-                                            idxs = df_full.index[df_full["Date"] == day].tolist()
-                                            if not idxs:
-                                                continue
-                                            idx = idxs[0]
-                                            if day.weekday() >= 5:  # skip weekends
-                                                continue
-                                            if idx - cfg["lookback"] < 0:
-                                                continue
-
-                                            window = scaled[idx - cfg["lookback"]: idx]
-                                            if window.shape[0] < cfg["lookback"]:
-                                                continue
-
-                                            X = window.reshape(1, cfg["lookback"], len(available_cols))
-                                            pred_scaled = model.predict(X, verbose=0)[0]
-
-                                            if len(pred_scaled) != len(available_cols):
-                                                logs.append({"Ticker": ticker, "Status": "❌ Output không khớp input"})
-                                                continue
-
-                                            pred_real = scaler.inverse_transform([pred_scaled])[0]
-                                            row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                                            preds.append(tuple(row_tuple))
-
-                                        if preds:
-                                            df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                                            db.save_forecast_last(ticker, df_forecast)
-
-                                            # Chuẩn hóa RMSE/MAPE về dict float
-                                            rmse_safe = {col: round(rmse[col], 4) for col in available_cols} if isinstance(rmse, dict) else None
-                                            mape_safe = {col: round(mape[col], 2) for col in available_cols} if isinstance(mape, dict) else None
-
-                                            logs.append({
-                                                "Ticker": ticker,
-                                                "Status": "✅ Thành công",
-                                                "RMSE": rmse_safe,
-                                                "MAPE": mape_safe
-                                            })
-                                        else:
-                                            logs.append({"Ticker": ticker, "Status": "⚠️ Không có dự báo"})
-                                    
-                                    # -------------------
-                                    # TCN
-                                    # -------------------
-                                    elif model_type == "TCN":
-                                        if len(df_train) < 60:
-                                            logs.append({"Ticker": ticker, "Status": "❌ Dữ liệu quá ít"})
-                                            continue
-
-                                        # Train multi-output TCN
-                                        model, scaler = train_tcn_model(
-                                            df_train,
-                                            ticker=ticker,
-                                            epochs=epochs,
-                                            batch_size=batch_size,
-                                            look_back=cfg["lookback"]
-                                        )
-
-                                        # Đánh giá insample multi-output
-                                        rmse, mape = evaluate_tcn_insample(model, scaler, df_train, cfg["lookback"])
-
-                                        # Dự báo multi-output
-                                        df_full = df_clean.copy()
-
-                                        # Lấy danh sách các cột đã train
-                                        if hasattr(scaler, "feature_names_in_"):
-                                            available_cols = list(scaler.feature_names_in_)
-                                        else:
-                                            logs.append({"Ticker": ticker, "Status": "❌ Không xác định được cột scaler"})
-                                            continue
-
-                                        # Kiểm tra dữ liệu có đủ cột không
-                                        missing_cols = [col for col in available_cols if col not in df_full.columns]
-                                        if missing_cols:
-                                            logs.append({"Ticker": ticker, "Status": f"❌ Thiếu cột {missing_cols}"})
-                                            continue
-
-                                        pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                                        # Chuẩn hóa dữ liệu input
-                                        data_vals = df_full[available_cols].values
-                                        scaled = scaler.transform(data_vals)
-                                        candidate_dates = df_full["Date"].iloc[max(0, len(df_full) - cfg["forecast_days"]):].tolist()
-
-                                        preds = []
-                                        for day in candidate_dates:
-                                            idxs = df_full.index[df_full["Date"] == day].tolist()
-                                            if not idxs:
-                                                continue
-                                            idx = idxs[0]
-                                            if day.weekday() >= 5:  # skip weekends
-                                                continue
-                                            if idx - cfg["lookback"] < 0:
-                                                continue
-
-                                            window = scaled[idx - cfg["lookback"]: idx]
-                                            if window.shape[0] < cfg["lookback"]:
-                                                continue
-
-                                            X = window.reshape(1, cfg["lookback"], len(available_cols))
-                                            pred_scaled = model.predict(X, verbose=0)[0]
-
-                                            if len(pred_scaled) != len(available_cols):
-                                                logs.append({"Ticker": ticker, "Status": "❌ Output không khớp input"})
-                                                continue
-
-                                            pred_real = scaler.inverse_transform([pred_scaled])[0]
-                                            row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                                            preds.append(tuple(row_tuple))
-
-                                        if preds:
-                                            df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                                            db.save_forecast_last(ticker, df_forecast)
-
-                                            # Chuẩn hóa RMSE/MAPE về dict float
-                                            rmse_safe = {col: round(rmse[col], 4) for col in available_cols} if isinstance(rmse, dict) else None
-                                            mape_safe = {col: round(mape[col], 2) for col in available_cols} if isinstance(mape, dict) else None
-
-                                            logs.append({
-                                                "Ticker": ticker,
-                                                "Status": "✅ Thành công",
-                                                "RMSE": rmse_safe,
-                                                "MAPE": mape_safe
-                                            })
-                                        else:
-                                            logs.append({"Ticker": ticker, "Status": "⚠️ Không có dự báo"})
-
-                                    else:
-                                        logs.append({"Ticker": ticker, "Status": f"❌ Mô hình không hợp lệ: {model_type}"})
-
-                                except Exception as e:
-                                    logs.append({"Ticker": ticker, "Status": f"❌ Lỗi: {str(e)}"})
-
-                            # -------------------
-                            # Hiển thị log trong Streamlit
-                            # -------------------
                             st.subheader("📊 Kết quả huấn luyện (log)")
-                            # st.dataframe(pd.DataFrame(logs), use_container_width=True)
                             st.dataframe(pd.DataFrame(logs), width="stretch")
 
                 # -------------------------
-                # TAB 3: Quản lý & huấn luyện tự động
+                # TAB 3: Quản lý & huấn luyện tự động — gọi bulk_or_auto_train(auto_optimize=True)
                 # -------------------------
                 with tab3:
-                    # st.subheader("⚙️ Quản lý & huấn luyện tự động")
-                    source = "yf"
+                    source = data_source #"yf"
                     st.caption("Quản lý các mã thiếu `Predicted_Close`, cho phép huấn luyện thủ công hoặc bật auto-train.")
+
                     with st.expander("ℹ️ Help: Quản lý & huấn luyện tự động"):
                         st.markdown(
-                            "- **Auto-train**: nếu bật, khi mở tab này hệ thống sẽ tự động huấn luyện các ticker thiếu dữ liệu Backtest.\n"
-                            "- **Tối ưu tham số**: hệ thống sẽ thử các cấu hình nhanh (quick_validate) và chọn cấu hình có RMSE nhỏ nhất.\n"
-                            "- **Lưu**: Sau khi huấn luyện, dự báo được lưu vào CSDL để làm dữ liệu phục vụ Backtest.\n"
+                            "- Auto-train: huấn luyện các ticker thiếu Backtest.\n"
+                            "- Auto-config: chọn tham số tốt nhất dựa trên RMSE.\n"
+                            "- Lưu kết quả vào DB để phục vụ Backtest.\n"
                         )
 
-                    auto_train = st.checkbox("Huấn luyện tự động khi có ticker mới", value=False,
-                                            help="Bật để hệ thống tự động huấn luyện các mã thiếu dữ liệu Backtest.")
+                    auto_train = st.checkbox(
+                        "Huấn luyện tự động khi có ticker mới",
+                        value=False
+                    )
 
-                    # danh sách ticker thiếu dữ liệu dự báo
+                    model_type = st.selectbox(
+                        "Chọn mô hình:",
+                        ["LSTM", "TCN"],
+                        key="auto_model",
+                        help=(
+                            "LSTM – (Long Short-Term Memory) là một kiến trúc mạng RNN (Recurrent Neural Network) đặc biệt, "
+                            "được thiết kế để học chuỗi thời gian hoặc dữ liệu tuần tự, cần ít nhất 252 dòng dữ liệu.\n"
+                            "TCN – (Temporal Convolutional Network) là một mô hình học sâu cho chuỗi thời gian, "
+                            "dựa trên Convolutional Neural Network (CNN) nhưng được thiết kế đặc biệt để xử lý dữ liệu "
+                            "tuần tự, mạnh với chuỗi dài và quan hệ phức tạp."
+                        )
+                    )
+
+                    epochs = st.slider(
+                        "Số vòng lặp (Epochs)", 5, 200, 50, 5,
+                        key="auto_epochs",
+                        help="Số lần học trên toàn bộ tập dữ liệu (áp dụng cho LSTM và TCN)."
+                    )
+
+                    batch_size = st.slider(
+                        "Batch size", 4, 128, 16, 4,
+                        key="auto_batch",
+                        help="Kích thước tập con dữ liệu cho mỗi lần cập nhật trọng số (áp dụng cho LSTM và TCN)."
+                    )
+
+                    n_days_auto = st.slider(
+                        "Số ngày dự báo (n_days)",
+                        min_value=7, max_value=30, value=7, step=1,
+                        key="auto_n_days",
+                        help="Số ngày model sẽ học dự báo. Phải khớp với Số ngày dự báo ở tab Dự báo để không phải train lại."
+                    )
+
                     missing_pred = find_tickers_missing_predicted_close(valid_tickers)
 
-                    st.write("Danh sách các mã cổ phiếu thiếu dữ liệu Backtest:")
+                    st.write("Danh sách mã thiếu Backtest:")
+
                     if missing_pred:
                         st.warning(", ".join(missing_pred))
                     else:
-                        st.info("✔️ Không có mã thiếu dữ liệu Backtest.")
+                        st.info("✔️ Không có mã thiếu Backtest.")
 
-                    
-                    if st.button("🚀 Huấn luyện các mã thiếu dữ liệu"):
-                        logs = []
-                        with st.spinner("Đang huấn luyện các mã… Vui lòng chờ trong giây lát"):
-                            for ticker in missing_pred:
-                                try:
-                                    df_raw = load_data_dl(ticker, source=source)
-                                    df_clean = clean_dataframe(df_raw, ticker=ticker)
-                                    if df_clean is None:
-                                        logs.append({"Ticker": ticker, "Status": "❌ No raw data"})
-                                        continue
+                    train_btn = st.button(
+                        "🚀 Huấn luyện các mã thiếu dữ liệu",
+                        disabled=not bool(missing_pred)
+                    )
 
-                                    # Auto-optimize params
-                                    best_cfg, best_rmse = None, None
-                                    try:
-                                        best_cfg, best_rmse = auto_optimize_training_params_wrapper(df_clean)
-                                    except Exception:
-                                        _, cfg = get_training_config_from_df(df_clean)
-                                        best_cfg = {
-                                            "years": cfg["train_years"],
-                                            "lookback": cfg["lookback"],
-                                            "horizon": cfg["forecast_days"]
-                                        }
-                                        best_rmse = None
+                    if train_btn:
+                        if not missing_pred:
+                            st.info("✔️ Không có ticker cần huấn luyện.")
+                        else:
+                            with st.spinner("Đang huấn luyện các mã..."):
+                                logs = bulk_or_auto_train(
+                                    ticker_list=missing_pred,
+                                    model_type=model_type,
+                                    epochs=epochs,
+                                    batch_size=batch_size,
+                                    n_days=n_days_auto,
+                                    auto_optimize=True,
+                                    source=source
+                                )
 
-                                    # Prepare df_train using best_cfg
-                                    df_train = df_clean[df_clean["Date"] >= (df_clean["Date"].max() - pd.DateOffset(years=best_cfg["years"]))]
-                                    if len(df_train) < 60:
-                                        logs.append({"Ticker": ticker, "Status": "❌ Dữ liệu quá ít"})
-                                        continue
+                            st.subheader("📊 Kết quả huấn luyện")
+                            st.dataframe(pd.DataFrame(logs), width="stretch")
 
-                                    # Train multi-output LSTM
-                                    model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=50, batch_size=16, look_back=cfg["lookback"])
 
-                                    # Evaluate multi-output
-                                    rmse, mape = evaluate_lstm_insample(model, scaler, df_train, best_cfg["lookback"])
-
-                                    # Produce multi-output predictions
-                                    df_full = df_clean.copy()
-
-                                    # Lấy danh sách cột đã train
-                                    if not hasattr(scaler, "feature_names_in_"):
-                                        logs.append({"Ticker": ticker, "Status": "⚠️ Scaler không có thông tin cột, cần train lại."})
-                                        continue
-                                    available_cols = list(scaler.feature_names_in_)
-                                    pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                                    # Chuẩn hóa dữ liệu input
-                                    data_vals = df_full[available_cols].values
-                                    scaled = scaler.transform(data_vals)
-                                    candidate_dates = df_full["Date"].iloc[max(0, len(df_full)-best_cfg["horizon"]):].tolist()
-
-                                    preds = []
-                                    for day in candidate_dates:
-                                        idxs = df_full.index[df_full["Date"] == day].tolist()
-                                        if not idxs:
-                                            continue
-                                        idx = idxs[0]
-                                        if day.weekday() >= 5:  # skip weekends
-                                            continue
-                                        if idx - best_cfg["lookback"] < 0:
-                                            continue
-                                        window = scaled[idx - best_cfg["lookback"]: idx]
-                                        if window.shape[0] < best_cfg["lookback"]:
-                                            continue
-
-                                        X = window.reshape(1, best_cfg["lookback"], len(available_cols))
-                                        pred_scaled = model.predict(X, verbose=0)[0]
-                                        pred_real = scaler.inverse_transform([pred_scaled])[0]
-
-                                        row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                                        preds.append(tuple(row_tuple))
-
-                                    if preds:
-                                        df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                                        db.save_forecast_last(ticker, df_forecast)
-                                        logs.append({
-                                            "Ticker": ticker,
-                                            "Status": "✅ Mô hình tự động huấn luyện và lưu dữ liệu đã hoàn thành.",
-                                            "Years": best_cfg["years"],
-                                            "Lookback": best_cfg["lookback"],
-                                            "Horizon": best_cfg["horizon"],
-                                            "RMSE": {col: round(rmse.get(col, None), 4) for col in available_cols} if rmse else None,
-                                            "MAPE": {col: round(mape.get(col, None), 2) for col in available_cols} if mape else None
-                                        })
-                                    else:
-                                        logs.append({"Ticker": ticker, "Status": "⚠️ Không tạo được dự báo"})
-
-                                except Exception as e:
-                                    logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
-
-                        st.subheader("📊 Kết quả tự động huấn luyện")
-                        # st.dataframe(pd.DataFrame(logs), use_container_width=True)
-                        st.dataframe(pd.DataFrame(logs), width="stretch")
-
-                    # auto_train on-open behavior
-                    
-                    # source = "yf"
-                    if auto_train and missing_pred:
-                        st.info("🔄 Auto-train đang chạy cho các mã thiếu...")
-                        auto_logs = []
-                        for ticker in missing_pred:
-                            try:
-                                df_raw = load_data_dl(ticker, source=source)
-                                df_clean = clean_dataframe(df_raw, ticker=ticker)
-                                if df_clean is None:
-                                    auto_logs.append({"Ticker": ticker, "Status": "❌ No raw data"})
-                                    continue
-
-                                # Auto-optimize
-                                try:
-                                    best_cfg, best_rmse = auto_optimize_training_params_wrapper(df_clean)
-                                except Exception:
-                                    _, cfg = get_training_config_from_df(df_clean)
-                                    best_cfg = {
-                                        "years": cfg["train_years"],
-                                        "lookback": cfg["lookback"],
-                                        "horizon": cfg["forecast_days"]
-                                    }
-                                    best_rmse = None
-
-                                # Chuẩn bị dữ liệu train
-                                df_train = df_clean[df_clean["Date"] >= (df_clean["Date"].max() - pd.DateOffset(years=best_cfg["years"]))]
-                                if len(df_train) < 60:
-                                    auto_logs.append({"Ticker": ticker, "Status": "❌ Dữ liệu quá ít"})
-                                    continue
-
-                                # Train multi-output LSTM
-                                model, scaler = train_lstm_model(df_train, ticker=ticker, epochs=50, batch_size=16, look_back=cfg["lookback"])
-
-                                # Evaluate multi-output
-                                rmse, mape = evaluate_lstm_insample(model, scaler, df_train, best_cfg["lookback"])
-
-                                # Produce multi-output predictions
-                                df_full = df_clean.copy()
-
-                                # Lấy danh sách cột đã train
-                                if not hasattr(scaler, "feature_names_in_"):
-                                    auto_logs.append({"Ticker": ticker, "Status": "⚠️ Scaler không có thông tin cột, cần train lại."})
-                                    continue
-                                available_cols = list(scaler.feature_names_in_)
-                                pred_cols = [f"Predicted_{col}" for col in available_cols]
-
-                                # Chuẩn hóa dữ liệu input
-                                data_vals = df_full[available_cols].values
-                                scaled = scaler.transform(data_vals)
-                                candidate_dates = df_full["Date"].iloc[max(0, len(df_full)-best_cfg["horizon"]):].tolist()
-
-                                preds = []
-                                for day in candidate_dates:
-                                    idxs = df_full.index[df_full["Date"] == day].tolist()
-                                    if not idxs:
-                                        continue
-                                    idx = idxs[0]
-                                    if day.weekday() >= 5:  # skip weekends
-                                        continue
-                                    if idx - best_cfg["lookback"] < 0:
-                                        continue
-                                    window = scaled[idx - best_cfg["lookback"]: idx]
-                                    if window.shape[0] < best_cfg["lookback"]:
-                                        continue
-
-                                    X = window.reshape(1, best_cfg["lookback"], len(available_cols))
-                                    pred_scaled = model.predict(X, verbose=0)[0]
-                                    pred_real = scaler.inverse_transform([pred_scaled])[0]
-
-                                    row_tuple = [day.strftime("%Y-%m-%d")] + [float(v) for v in pred_real] + [ticker]
-                                    preds.append(tuple(row_tuple))
-
-                                if preds:
-                                    df_forecast = pd.DataFrame(preds, columns=["Date"] + pred_cols + ["Ticker"])
-                                    db.save_forecast_last(ticker, df_forecast)
-                                    auto_logs.append({
-                                        "Ticker": ticker,
-                                        "Status": f"✅ Mô hình tự động huấn luyện và lưu dữ liệu đã hoàn thành cho {ticker}.",
-                                        "Years": best_cfg["years"],
-                                        "Lookback": best_cfg["lookback"],
-                                        "Horizon": best_cfg["horizon"],
-                                        "RMSE": {col: round(rmse.get(col, None), 4) for col in available_cols} if rmse else None,
-                                        "MAPE": {col: round(mape.get(col, None), 2) for col in available_cols} if mape else None
-                                    })
-                                else:
-                                    auto_logs.append({"Ticker": ticker, "Status": "⚠️ Không tạo được dự báo"})
-
-                            except Exception as e:
-                                auto_logs.append({"Ticker": ticker, "Status": f"❌ {e}"})
-
-                        st.subheader("📊 Kết quả tự động huấn luyện")
-                        # st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
-                        st.dataframe(pd.DataFrame(auto_logs), width="stretch")
-
-                        st.subheader("📊 Kết quả tự động huấn luyện (on-open)")
-                        # st.dataframe(pd.DataFrame(auto_logs), use_container_width=True)
-                        st.dataframe(pd.DataFrame(auto_logs), width="stretch")
-
-                
         # ---------------------------------------------------------------------------
                                 # Tab Báo cáo
         # ---------------------------------------------------------------------------
@@ -3530,18 +3353,15 @@ def page_home():
                         include_risk = st.checkbox("⚠️ Rủi ro", value=select_all, key="include_risk")
                         include_optimization = st.checkbox("📈 Tối ưu danh mục", value=select_all, key="include_optimization")
                         include_rebalance = st.checkbox("🔄 Tái cân bằng", value=select_all, key="include_rebalance")
-
+                    
                     # 3. Thực thi xuất báo cáo PDF
                     if st.button("🚀 Xuất báo cáo PDF"):
                         
-                        # today_str = datetime.today().strftime("%d%m%Y")
                         today_str = st.session_state.get("today_str")
                         if not today_str:  # fallback nếu session chưa có giá trị
                             today_str = datetime.today().strftime("%d%m%Y")
                             st.session_state["today_str"] = today_str
-                        # Cũ
-                        # allocation_result = globals().get("allocation_result", {})
-                        # Mới
+                        
                         allocation_result = st.session_state.get("allocation_result", globals().get("allocation_result", {}))
                         allocation_df = None
                         valid_tickers = []
@@ -3637,12 +3457,8 @@ def page_home():
                                     and not st.session_state["forecast_result"][d["ticker"]].empty
                                 } if include_forecast else None
 
-                                # Tái cân bằng
-
-
                                 # ===== Lấy dữ liệu Tái cân bằng từ session =====
                                 weights_df = st.session_state.get("rebalance_weights_df") if include_rebalance else None
-
 
                                 # Gọi hàm chuẩn đã thống nhất
                                 pdf_path = reporting.export_report_pdf(
@@ -3653,9 +3469,8 @@ def page_home():
                                     perf_df=perf_dict,
                                     risk_df=risk_dict,
                                     weights_df=weights_df if include_rebalance else None,
-                                    
-                                    alloc_display=alloc_display,                
-                                    adj_display=adj_display if 'adj_display' in locals() else None,  
+                                    alloc_display=st.session_state.get("alloc_display"),
+                                    adj_display=st.session_state.get("adj_display"),
                                     forecast_df=forecast_dict,  
                                     output_path=output_path,
                                     include_backtest=include_backtest,
@@ -3675,11 +3490,8 @@ def page_home():
 
                                 st.success(f"✅ Đã xuất báo cáo: `{pdf_path}`")
                                 
-
                             except Exception as e:
                                 st.error(f"❌ Lỗi khi xuất báo cáo PDF: {e}")
-
-                        
 
                 # # === 📤 SUB-TAB 2: Gửi Báo cáo qua Email ===
                 with sub_tabs[1]:
@@ -3769,11 +3581,11 @@ def page_home():
 
                     if send_button:
                         # ===== LẤY DỮ LIỆU GỐC =====
-                        bt_results = st.session_state.get("bt_results", globals().get("bt_results", {}))
-                        perf_results = st.session_state.get("perf_results", globals().get("perf_results", {}))
-                        risk_result = st.session_state.get("risk_result", globals().get("risk_result", {}))
-                        forecast_result = st.session_state.get("forecast_result", {})
-                        allocation_result = st.session_state.get("allocation_result", globals().get("allocation_result", {}))
+                        bt_results        = st.session_state.get("bt_results", {})
+                        perf_results      = st.session_state.get("perf_results", {})
+                        risk_result       = st.session_state.get("risk_result", {})
+                        forecast_result   = st.session_state.get("forecast_result", {})
+                        allocation_result = st.session_state.get("allocation_result", {})
 
                         email_list = [e.strip() for e in recipients.split(",") if e.strip()]
                         if not email_list:
@@ -3823,13 +3635,8 @@ def page_home():
                             allocation_df[ticker] = allocation_result.get(ticker)
 
                         # ===== Trọng số Tái cân bằng
-                        w1 = globals().get("weights")
-                        w2 = st.session_state.get("weights")
-                        if isinstance(w1, pd.DataFrame) and not w1.empty:
-                            weights_df = w1.copy()
-                        elif isinstance(w2, pd.DataFrame) and not w2.empty:
-                            weights_df = w2.copy()
-                        else:
+                        weights_df = st.session_state.get("weights")
+                        if not isinstance(weights_df, pd.DataFrame) or weights_df.empty:
                             weights_df = pd.DataFrame()
 
                         filename = generate_pdf_filename(tickers_sorted, report_date, suffix_list)
@@ -3845,9 +3652,8 @@ def page_home():
                                 perf_df=perf_df,                 # dict
                                 risk_df=risk_df,                 # dict
                                 weights_df=weights_df if include_rebalance else None,
-                                    
-                                alloc_display=alloc_display,                
-                                adj_display=adj_display if 'adj_display' in locals() else None, 
+                                alloc_display=st.session_state.get("alloc_display"),
+                                adj_display=st.session_state.get("adj_display"),
                                 forecast_df=forecast_df,         # dict
                                 forecast_result=forecast_df,     # dict
                                 include_forecast=include_forecast,

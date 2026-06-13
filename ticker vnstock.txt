@@ -1,0 +1,57 @@
+(venv) quangpx@Phams-MacBook-Pro ais % cd /Users/quangpx/ais && python -c "
+from vnstock.api.quote import Quote
+from vnstock import Listing
+listing = Listing()
+df = listing.all_symbols()
+print(df.columns.tolist())
+print(df.head(20).to_string())
+print(f'Tổng: {len(df)} mã')
+"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                 ┃
+┃  ⚠️ THÔNG BÁO QUAN TRỌNG                                                        ┃
+┃                                                                                 ┃
+┃  Phát hành vnstock 4.0.1 cung cấp sửa lỗi quan trọng và bổ sung giao diện API   ┃
+┃  thống nhất (Unified UI), tăng tính ổn định của code.                           ┃
+┃  Cập nhật: pip install vnstock -U                                               ┃
+┃  AI Agent Guide: https://github.com/vnstock-hq/vnstock-agent-guide/             ┃
+┃                                                                                 ┃
+┃  ────────────────────────────────────────────────────────────────────────────── ┃
+┃                                                                                 ┃
+┃  🚀 VNSTOCK INSIDERS PROGRAM - NÂNG TẦM TRẢI NGHIỆM CỦA BẠN! 🚀                 ┃
+┃                                                                                 ┃
+┃  Nếu bạn cảm thấy khó chịu với các thông báo và quảng cáo:                      ┃
+┃                                                                                 ┃
+┃  ✨ Ẩn toàn bộ thông báo và quảng cáo phiền hà                                  ┃
+┃  🔓 Mở rộng khả năng sử dụng API tối đa                                         ┃
+┃  ⚡ Tăng tốc tải dữ liệu từ 5-8 lần                                              ┃
+┃  📈 Tăng giới hạn truy cập API lên đến 5 lần                                    ┃
+┃  🤖 Dùng AI Agent viết code hiệu quả với tài liệu Agent Guide                    ┃
+┃                                                                                 ┃
+┃  🔗 Tham gia ngay: https://vnstocks.com/insiders-program#tiers                  ┃
+┃                                                                                 ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+['symbol', 'organ_name']
+   symbol                                   organ_name
+0     TCB            Ngân hàng TMCP Kỹ thương Việt Nam
+1     VGI  Tổng Công ty cổ phần Đầu tư Quốc tế Viettel
+2     VKP                            CTCP Nhựa Tân Hóa
+3     AGM                 CTCP Xuất Nhập khẩu An Giang
+4     BKC                      CTCP Khoáng sản Bắc Kạn
+5     VGS             CTCP Ống thép Việt - Đức VG PIPE
+6     POB               CTCP Xăng dầu Dầu khí Hưng Yên
+7     VNG                CTCP Du lịch Thành Thành Công
+8     PVL                          CTCP Địa ốc Dầu khí
+9     ACE                 CTCP Bê tông Ly tâm An Giang
+10    IDC                    Tổng Công ty IDICO - CTCP
+11    VLG                          CTCP VIMC Logistics
+12    TRV                       CTCP Vận tải Đường sắt
+13    PVO                         CTCP Dầu nhờn PV Oil
+14    GTD                        CTCP Giầy Thượng Đình
+15    NTT                     CTCP Dệt - May Nha Trang
+16    BSD           CTCP Bia, Rượu Sài Gòn - Đồng Xuân
+17    IJC             CTCP Phát triển Hạ tầng Kỹ thuật
+18    KOS                                    CTCP KOSY
+19    CCM           CTCP khoáng sản và Xi măng Cần Thơ
+Tổng: 1532 mã
+(venv) quangpx@Phams-MacBook-Pro ais % 

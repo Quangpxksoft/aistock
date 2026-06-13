@@ -1,0 +1,438 @@
+
+{
+    "tab": "general",
+    "title": "📖 Thuật ngữ & Chỉ số trong AIS",
+    "sections": {
+      "cot_du_lieu": {
+        "title": "📋 Tên cột dữ liệu",
+        "faqs": [
+          {
+            "questions": [
+              "PO là gì?",
+              "Predicted Open là gì?",
+              "Cột PO trong bảng backtest là gì?"
+            ],
+            "keywords": ["PO", "Predicted_Open", "predicted open", "giá mở cửa dự báo"],
+            "answer": "**PO (Predicted_Open)** — Giá mở cửa dự báo:\n- Là giá mở cửa do mô hình AI (LSTM hoặc TCN) dự báo cho ngày giao dịch tiếp theo\n- Đơn vị: VNĐ\n- Ràng buộc tài chính: PL ≤ PO ≤ PH (giá mở cửa dự báo phải nằm trong khoảng giá thấp nhất và cao nhất dự báo)\n- Xuất hiện trong bảng Backtest (cột rút gọn PO) và bảng Dự báo chi tiết (cột Giá mở cửa)"
+          },
+          {
+            "questions": [
+              "PH là gì?",
+              "Predicted High là gì?",
+              "Cột PH trong bảng backtest là gì?"
+            ],
+            "keywords": ["PH", "Predicted_High", "predicted high", "giá cao nhất dự báo"],
+            "answer": "**PH (Predicted_High)** — Giá cao nhất dự báo:\n- Là mức giá cao nhất trong ngày do mô hình AI dự báo\n- Đơn vị: VNĐ\n- Ràng buộc: PH ≥ PC (giá cao nhất phải ≥ giá đóng cửa dự báo)\n- Công thức inverse: PH = PC × exp(|high_ratio|) — đảm bảo PH ≥ PC về mặt toán học\n- Xuất hiện trong bảng Backtest (cột rút gọn PH) và bảng Dự báo chi tiết (cột Giá cao nhất)"
+          },
+          {
+            "questions": [
+              "PL là gì?",
+              "Predicted Low là gì?",
+              "Cột PL trong bảng backtest là gì?"
+            ],
+            "keywords": ["PL", "Predicted_Low", "predicted low", "giá thấp nhất dự báo"],
+            "answer": "**PL (Predicted_Low)** — Giá thấp nhất dự báo:\n- Là mức giá thấp nhất trong ngày do mô hình AI dự báo\n- Đơn vị: VNĐ\n- Ràng buộc: PL ≤ PC (giá thấp nhất phải ≤ giá đóng cửa dự báo)\n- Công thức inverse: PL = PC × exp(−|low_ratio|) — đảm bảo PL ≤ PC về mặt toán học\n- Xuất hiện trong bảng Backtest (cột rút gọn PL) và bảng Dự báo chi tiết (cột Giá thấp nhất)"
+          },
+          {
+            "questions": [
+              "PC là gì?",
+              "Predicted Close là gì?",
+              "Cột PC trong bảng backtest là gì?",
+              "Dự báo đóng cửa là gì?"
+            ],
+            "keywords": ["PC", "Predicted_Close", "predicted close", "giá đóng cửa dự báo", "dự báo đóng cửa"],
+            "answer": "**PC (Predicted_Close)** — Giá đóng cửa dự báo:\n- Là giá đóng cửa do mô hình AI (LSTM hoặc TCN) dự báo\n- Đây là chỉ số quan trọng nhất trong dự báo — anchor chính cho toàn bộ OHLCV dự báo\n- Đơn vị: VNĐ\n- Xuất hiện trong nhiều bảng: Backtest (cột PO), Dự báo chi tiết (Giá đóng cửa), Thống kê mô tả (Giá dự báo)\n- Dùng để tính MAE, RMSE, MAPE trong đánh giá mô hình"
+          },
+          {
+            "questions": [
+              "PV là gì?",
+              "Predicted Volume là gì?",
+              "Cột PV trong bảng backtest là gì?",
+              "Khối lượng dự báo là gì?"
+            ],
+            "keywords": ["PV", "Predicted_Volume", "predicted volume", "khối lượng dự báo"],
+            "answer": "**PV (Predicted_Volume)** — Khối lượng giao dịch dự báo:\n- Là tổng số cổ phiếu dự báo sẽ được giao dịch trong ngày\n- Đơn vị: cổ phiếu (không phải VNĐ)\n- Mô hình dự báo delta log volume: vol_delta = log1p(V[t]) − log1p(V[t-1])\n- Inverse: V[t] = expm1(log1p(V[t-1]) + vol_delta[t])\n- Xuất hiện trong bảng Backtest (cột PV) và Dự báo chi tiết (cột Khối lượng)"
+          },
+          {
+            "questions": [
+              "Portfolio Value là gì?",
+              "Giá trị danh mục là gì?",
+              "Cột Portfolio_Value trong backtest là gì?"
+            ],
+            "keywords": ["Portfolio Value", "Portfolio_Value", "giá trị danh mục", "portfolio value"],
+            "answer": "**Portfolio Value (Giá trị danh mục)** — Tổng giá trị tài sản trong danh mục tại một thời điểm:\n\n**Công thức**: Portfolio_Value(t) = Số lượng cổ phiếu × Close(t)\n\n**Trong backtest**:\n- Bắt đầu từ giá trị ban đầu (thường = giá Close đầu kỳ)\n- Thay đổi theo giá đóng cửa từng ngày\n- Dùng để tính các chỉ số hiệu suất: Return, Drawdown, Sharpe Ratio\n- Biểu đồ Portfolio Value thể hiện tăng trưởng/suy giảm theo thời gian"
+          },
+          {
+            "questions": [
+              "Độ biến động trong bảng hành vi là gì?",
+              "Cột Độ biến động tính như thế nào?"
+            ],
+            "keywords": ["độ biến động", "biên độ ngày", "High Low"],
+            "answer": "**Độ biến động (trong bảng Hành vi nhà đầu tư)** — Biên độ giá trong ngày:\n\n**Công thức**: Độ biến động = High − Low\n\n**Ý nghĩa**:\n- Đo lường mức dao động giá trong một phiên giao dịch\n- Độ biến động cao → phiên giao dịch sôi động, nhiều bất ổn\n- Độ biến động thấp → phiên giao dịch trầm lắng, ít biến động\n- Khác với Volatility (đo lường độ lệch chuẩn log return theo năm)"
+          },
+          {
+            "questions": [
+              "Tín hiệu xu hướng là gì?",
+              "Cột Tín hiệu xu hướng tính như thế nào?"
+            ],
+            "keywords": ["tín hiệu xu hướng", "trend signal", "Close Open High Low"],
+            "answer": "**Tín hiệu xu hướng** — Chỉ số đo lực xu hướng trong ngày:\n\n**Công thức**: Tín hiệu = (Close − Open) / (High − Low + ε)\n\n**Diễn giải**:\n- Giá trị dương (+) → xu hướng tăng trong ngày (Close > Open)\n- Giá trị âm (−) → xu hướng giảm trong ngày (Close < Open)\n- Giá trị gần ±1 → xu hướng mạnh (giá đóng cửa gần đỉnh hoặc đáy ngày)\n- Giá trị gần 0 → xu hướng yếu, giá đóng cửa ở giữa biên độ\n- Hiển thị dạng % trong bảng (nhân 100)"
+          },
+          {
+            "questions": [
+              "Sai số trong backtest là gì?",
+              "Cột Sai số % là gì?",
+              "Sai số dự báo tính như thế nào?"
+            ],
+            "keywords": ["sai số", "sai số %", "error", "prediction error"],
+            "answer": "**Sai số dự báo** trong bảng Backtest:\n\n**Sai số (tuyệt đối)**: Sai số = PC − Close\n- Dương (+): mô hình dự báo cao hơn thực tế\n- Âm (−): mô hình dự báo thấp hơn thực tế\n- Đơn vị: VNĐ\n\n**Sai số %**: Sai số % = |PC − Close| / Close × 100%\n- Đo lường sai số tương đối so với giá thực tế\n- Không phụ thuộc vào vùng giá của cổ phiếu\n- Dùng để so sánh hiệu suất dự báo giữa các mã"
+          },
+          {
+            "questions": [
+              "Mức thay đổi trong bảng khớp lệnh là gì?",
+              "Cột Mức thay đổi là gì?"
+            ],
+            "keywords": ["mức thay đổi", "price change", "thay đổi giá"],
+            "answer": "**Mức thay đổi** — Biến động giá so với phiên trước:\n\n**Công thức**: Mức thay đổi = Close(t) − Close(t+1)\n(so sánh với phiên liền sau trong bảng sắp xếp giảm dần theo ngày)\n\n**Hiển thị**:\n- Dương (+2.500): giá tăng 2.500 VNĐ so với phiên trước\n- Âm (−1.500): giá giảm 1.500 VNĐ so với phiên trước\n- Kèm cột **Xu hướng**: Tăng / Giảm / Ổn định"
+          },
+          {
+            "questions": [
+              "Hiệu suất 1M là gì?",
+              "Hiệu suất 1 tháng tính như thế nào?"
+            ],
+            "keywords": ["hiệu suất 1M", "return 1 tháng", "1 month return"],
+            "answer": "**Hiệu suất 1M (1 tháng)** — Tỷ suất lợi nhuận trong 22 ngày giao dịch gần nhất:\n\n**Công thức**: Return_1M = (Close[−1] / Close[−22]) − 1\n\nTrong đó Close[−1] là giá gần nhất, Close[−22] là giá 22 ngày giao dịch trước.\n\n**Dùng trong tab Tái cân bằng**: làm cơ sở tính tỷ trọng gợi ý cho từng mã."
+          }
+        ]
+      },
+      "chi_so_hieu_suat": {
+        "title": "📊 Chỉ số hiệu suất & rủi ro",
+        "faqs": [
+          {
+            "questions": [
+              "Win Rate là gì?",
+              "Tỷ lệ thắng là gì?",
+              "Win Rate tính như thế nào?"
+            ],
+            "keywords": ["Win Rate", "win rate", "tỷ lệ thắng", "winning rate"],
+            "answer": "**Win Rate (Tỷ lệ thắng)** — Tỷ lệ phiên giao dịch có lợi nhuận dương:\n\n**Công thức**: Win Rate = Số phiên lợi nhuận > 0 / Tổng số phiên × 100%\n\n**Diễn giải**:\n- Win Rate > 50%: chiến lược thắng nhiều hơn thua\n- Win Rate cao nhưng lợi nhuận thấp → cần kết hợp với Profit Factor\n- Win Rate thấp nhưng lợi nhuận cao từng lệnh → chiến lược trend-following\n- Xuất hiện trong bảng hiệu suất chiến lược backtest"
+          },
+          {
+            "questions": [
+              "Profit Factor là gì?",
+              "Hệ số lợi nhuận là gì?",
+              "Profit Factor tính như thế nào?"
+            ],
+            "keywords": ["Profit Factor", "profit factor", "hệ số lợi nhuận"],
+            "answer": "**Profit Factor** — Tỷ lệ tổng lợi nhuận trên tổng thua lỗ:\n\n**Công thức**: Profit Factor = Tổng lợi nhuận các lệnh thắng / |Tổng thua lỗ các lệnh thua|\n\n**Diễn giải**:\n- Profit Factor > 1: chiến lược có lợi nhuận ròng dương\n- Profit Factor > 2: chiến lược tốt\n- Profit Factor < 1: chiến lược thua lỗ\n- Profit Factor = 1.5 → cứ thua 1đ thì thắng 1.5đ"
+          },
+          {
+            "questions": [
+              "Sharpe Ratio là gì?",
+              "Sharpe Ratio tính như thế nào?",
+              "Sharpe Ratio bao nhiêu là tốt?"
+            ],
+            "keywords": ["Sharpe Ratio", "sharpe", "risk-adjusted return", "lợi nhuận điều chỉnh rủi ro"],
+            "answer": "**Sharpe Ratio** — Tỷ suất sinh lời điều chỉnh theo rủi ro:\n\n**Công thức**:\nSharpe = (R_portfolio − R_free) / σ_portfolio\n\nTrong đó:\n- R_portfolio: lợi nhuận danh mục (annualized)\n- R_free: lãi suất phi rủi ro (~4-5%/năm tại VN)\n- σ_portfolio: volatility danh mục (annualized)\n\n**Diễn giải**:\n- Sharpe > 1: tốt\n- Sharpe > 2: rất tốt\n- Sharpe > 3: xuất sắc\n- Sharpe < 0: kém hơn gửi ngân hàng\n\nXuất hiện trong bảng lọc hiệu suất tab Backtest."
+          },
+          {
+            "questions": [
+              "Sortino Ratio là gì?",
+              "Sortino Ratio khác Sharpe thế nào?"
+            ],
+            "keywords": ["Sortino Ratio", "sortino", "downside deviation", "downside risk"],
+            "answer": "**Sortino Ratio** — Tỷ suất sinh lời điều chỉnh theo rủi ro downside:\n\n**Công thức**:\nSortino = (R_portfolio − R_free) / Downside Deviation\n\nTrong đó Downside Deviation = std của các ngày có return âm.\n\n**Khác Sharpe**:\n- Sharpe phạt cả upside và downside volatility\n- Sortino chỉ phạt downside volatility (thua lỗ) → công bằng hơn với chiến lược có upside lớn\n- Sortino > Sharpe khi phân phối lợi nhuận lệch dương\n\nXuất hiện trong bảng Risk Metrics tab Phân tích rủi ro."
+          },
+          {
+            "questions": [
+              "Calmar Ratio là gì?",
+              "Calmar tính như thế nào?"
+            ],
+            "keywords": ["Calmar Ratio", "calmar", "return drawdown ratio"],
+            "answer": "**Calmar Ratio** — Tỷ suất lợi nhuận trên mức giảm tối đa:\n\n**Công thức**: Calmar = Annualized Return / |Max Drawdown|\n\n**Diễn giải**:\n- Calmar > 1: lợi nhuận hàng năm lớn hơn mức giảm tối đa → tốt\n- Calmar cao → chiến lược hiệu quả với rủi ro thấp\n- Thường dùng để so sánh các quỹ đầu tư\n\nXuất hiện trong bảng Risk Metrics tab Phân tích rủi ro."
+          },
+          {
+            "questions": [
+              "Max Drawdown là gì?",
+              "Mức giảm tối đa là gì?",
+              "Max Drawdown tính như thế nào?",
+              "Giới hạn Max Drawdown trong sidebar là gì?"
+            ],
+            "keywords": ["Max Drawdown", "drawdown", "mức giảm tối đa", "MDD"],
+            "answer": "**Max Drawdown (MDD)** — Mức giảm tối đa từ đỉnh xuống đáy:\n\n**Công thức**:\nDrawdown(t) = (Peak(t) − Value(t)) / Peak(t)\nMax Drawdown = max(Drawdown(t)) với mọi t\n\n**Diễn giải**:\n- MDD = 25% → danh mục từng giảm tối đa 25% từ đỉnh\n- MDD thấp → rủi ro thấp\n\n**Slider trong Sidebar**: Giới hạn Max Drawdown (%) — lọc chỉ giữ mã có MDD ≤ ngưỡng này. Mặc định 25%, điều chỉnh 0-100%."
+          },
+          {
+            "questions": [
+              "VaR là gì?",
+              "Value at Risk là gì?",
+              "CVaR là gì?",
+              "Conditional VaR là gì?"
+            ],
+            "keywords": ["VaR", "CVaR", "Value at Risk", "Conditional VaR", "rủi ro đuôi"],
+            "answer": "**VaR (Value at Risk)** — Giá trị rủi ro:\n- Mức thua lỗ tối đa trong 1 ngày với xác suất 95%\n- VaR(95%) = Percentile(5%) của phân phối log return × Giá trị danh mục\n- VaR = −2% → 95% khả năng không mất quá 2% trong 1 ngày\n\n**CVaR (Conditional VaR / Expected Shortfall)**:\n- Mức thua lỗ trung bình trong 5% trường hợp xấu nhất\n- CVaR ≤ VaR (thường âm hơn)\n- Đo rủi ro đuôi (tail risk) tốt hơn VaR\n\nXuất hiện trong bảng Risk Metrics tab Phân tích rủi ro."
+          },
+          {
+            "questions": [
+              "Alpha là gì?",
+              "Alpha trong đầu tư là gì?",
+              "Jensen Alpha là gì?"
+            ],
+            "keywords": ["Alpha", "alpha", "Jensen Alpha", "excess return"],
+            "answer": "**Alpha (α)** — Lợi nhuận vượt trội so với thị trường:\n\n**Công thức (Jensen Alpha)**:\nα = R_portfolio − [R_free + β × (R_market − R_free)]\n\n**Diễn giải**:\n- α > 0: danh mục hoạt động tốt hơn mức kỳ vọng theo CAPM\n- α < 0: danh mục kém hơn kỳ vọng\n- α = 0: danh mục đúng bằng mức kỳ vọng theo rủi ro\n\nXuất hiện trong bảng Risk Metrics tab Phân tích rủi ro."
+          },
+          {
+            "questions": [
+              "Beta là gì?",
+              "Beta cổ phiếu là gì?",
+              "Beta lớn hơn 1 có nghĩa gì?"
+            ],
+            "keywords": ["Beta", "beta", "hệ số beta", "market sensitivity"],
+            "answer": "**Beta (β)** — Hệ số nhạy cảm với thị trường:\n\n**Công thức**: β = Cov(R_stock, R_market) / Var(R_market)\n\n**Diễn giải**:\n- β = 1: biến động cùng chiều và cùng mức thị trường\n- β > 1: biến động mạnh hơn thị trường (tăng trưởng)\n- β < 1: biến động yếu hơn thị trường (phòng thủ)\n- β < 0: ngược chiều thị trường (hiếm)\n\nXuất hiện trong bảng Risk Metrics tab Phân tích rủi ro."
+          },
+          {
+            "questions": [
+              "Volatility là gì?",
+              "Độ biến động hàng năm là gì?",
+              "Annualized Volatility tính như thế nào?"
+            ],
+            "keywords": ["Volatility", "volatility", "độ biến động", "annualized volatility", "std"],
+            "answer": "**Volatility (Độ biến động hàng năm)** — Đo lường mức độ dao động giá:\n\n**Công thức**:\n1. log_return(t) = ln(Close(t) / Close(t-1))\n2. std_daily = std(log_return)\n3. Volatility_annual = std_daily × √252\n\n**Diễn giải**:\n- Volatility cao → rủi ro cao\n- Cổ phiếu VN bluechip thường 20-40%/năm\n- Dùng trong tính Sharpe Ratio và phân bổ vốn theo rủi ro (Risk Parity)\n\nXuất hiện trong bảng Risk Metrics và bảng Phân bổ nâng cao tab Tối ưu danh mục."
+          },
+          {
+            "questions": [
+              "Expected Return là gì?",
+              "Lợi nhuận kỳ vọng là gì?",
+              "Lợi nhuận kỳ vọng tính như thế nào?"
+            ],
+            "keywords": ["Expected Return", "expected return", "lợi nhuận kỳ vọng", "annualized return"],
+            "answer": "**Expected Return (Lợi nhuận kỳ vọng)** — Lợi nhuận trung bình kỳ vọng hàng năm:\n\n**Công thức**:\n1. log_return_daily = ln(Close(t) / Close(t-1))\n2. mean_daily = mean(log_return_daily)\n3. Expected_Return = mean_daily × 252\n\n**Diễn giải**:\n- Tính theo 1 năm (252 ngày giao dịch)\n- Dựa trên lịch sử log return hàng ngày\n- Dùng trong tối ưu danh mục Markowitz\n\nXuất hiện trong bảng Phân bổ vốn tab Tối ưu danh mục."
+          },
+          {
+            "questions": [
+              "Annualized Return là gì?",
+              "Lợi nhuận hàng năm tính như thế nào?"
+            ],
+            "keywords": ["Annualized Return", "annualized return", "lợi nhuận hàng năm", "CAGR"],
+            "answer": "**Annualized Return** — Tỷ suất lợi nhuận quy đổi hàng năm:\n\n**Công thức**: Annualized Return = (Portfolio_Value_cuối / Portfolio_Value_đầu)^(252/n) − 1\n\nTrong đó n là số ngày giao dịch trong kỳ backtest.\n\nXuất hiện trong bảng hiệu suất chiến lược tab Backtest."
+          },
+          {
+            "questions": [
+              "MAE là gì?",
+              "RMSE là gì?",
+              "MAPE là gì?",
+              "Sai số trung bình là gì?"
+            ],
+            "keywords": ["MAE", "RMSE", "MAPE", "mean absolute error", "root mean square error", "sai số dự báo"],
+            "answer": "**Các chỉ số đánh giá độ chính xác dự báo**:\n\n**MAE (Mean Absolute Error)**:\nMAE = Σ|PC − Close| / n\n→ Sai số trung bình tuyệt đối, đơn vị VNĐ, dễ hiểu\n\n**RMSE (Root Mean Square Error)**:\nRMSE = √(Σ(PC − Close)² / n)\n→ Nhấn mạnh sai số lớn, nhạy với outlier hơn MAE\n\n**MAPE (Mean Absolute Percentage Error)**:\nMAPE = (Σ|PC − Close| / Close) / n × 100%\n→ Sai số theo %, dễ so sánh giữa các mã\n\n**Diễn giải MAPE**:\n- < 5%: xuất sắc\n- 5-10%: tốt\n- 10-20%: chấp nhận được\n- > 20%: kém\n\nXuất hiện trong bảng Backtest dự báo và kết quả huấn luyện."
+          }
+        ]
+      },
+      "bang_bieu": {
+        "title": "📋 Bảng biểu & Màn hình",
+        "faqs": [
+          {
+            "questions": [
+              "Bảng Dự báo chi tiết hiển thị gì?",
+              "Tab Dự báo chi tiết là gì?"
+            ],
+            "keywords": ["dự báo chi tiết", "forecast detail", "bảng dự báo"],
+            "answer": "**Bảng Dự báo chi tiết** (sub-tab 1 trong tab Dự báo):\n\nHiển thị dự báo OHLCV cho n ngày tới (mặc định 7 ngày):\n- **Ngày**: ngày giao dịch dự báo (ngày làm việc)\n- **Giá mở cửa** (Predicted_Open)\n- **Giá cao nhất** (Predicted_High)\n- **Giá thấp nhất** (Predicted_Low)\n- **Giá đóng cửa** (Predicted_Close)\n- **Khối lượng** (Predicted_Volume)\n\nKèm biểu đồ:\n- Biểu đồ dự báo giá có điểm giá hiện tại\n- Biểu đồ xu hướng giá đóng cửa & SMA(n kỳ)"
+          },
+          {
+            "questions": [
+              "Bảng Thống kê mô tả dự báo là gì?",
+              "min max mean median trong dự báo là gì?"
+            ],
+            "keywords": ["thống kê mô tả", "descriptive statistics", "min", "max", "mean", "median", "25%", "75%", "std", "count"],
+            "answer": "**Bảng Thống kê mô tả dự báo** (sub-tab 2 trong tab Dự báo):\n\nHiển thị thống kê phân phối của giá dự báo và khối lượng dự báo:\n- **count**: số ngày dự báo\n- **min**: giá/khối lượng thấp nhất trong chuỗi dự báo\n- **25%**: phân vị thứ 25 (tứ phân vị Q1)\n- **50%**: trung vị (median) — giá trị giữa\n- **75%**: phân vị thứ 75 (tứ phân vị Q3)\n- **mean**: trung bình cộng\n- **max**: giá/khối lượng cao nhất trong chuỗi dự báo\n- **std**: độ lệch chuẩn — đo mức độ phân tán"
+          },
+          {
+            "questions": [
+              "Hành vi NĐT là gì?",
+              "Hưng phấn mua mạnh là gì?",
+              "Hoảng loạn bán tháo là gì?",
+              "Bảng dự báo hành vi là gì?"
+            ],
+            "keywords": ["hành vi NĐT", "hành vi nhà đầu tư", "hưng phấn", "hoảng loạn", "lạc quan", "bi quan", "lưỡng lự"],
+            "answer": "**Dự báo hành vi nhà đầu tư** (sub-tab 3 trong tab Dự báo):\n\nPhân loại tâm lý nhà đầu tư dựa trên % thay đổi giá đóng cửa dự báo:\n\n- **Hưng phấn (mua mạnh)**: return > +2% → tâm lý tích cực mạnh, kỳ vọng tăng cao\n- **Lạc quan thận trọng**: return từ +0.5% đến +2% → tâm lý tích cực nhẹ\n- **Lưỡng lự / quan sát**: return từ −0.5% đến +0.5% → thị trường sideway, chờ tín hiệu\n- **Bi quan nhẹ**: return từ −2% đến −0.5% → tâm lý tiêu cực nhẹ\n- **Hoảng loạn (bán tháo)**: return < −2% → tâm lý tiêu cực mạnh, áp lực bán lớn\n\nDựa trên: return = pct_change(Predicted_Close)"
+          },
+          {
+            "questions": [
+              "Bảng khớp lệnh thực tế là gì?",
+              "Giao dịch khớp lệnh thực tế là gì?"
+            ],
+            "keywords": ["khớp lệnh thực tế", "giao dịch thực tế", "matched orders"],
+            "answer": "**Bảng Giao dịch khớp lệnh thực tế** (sub-tab 4 trong tab Dự báo):\n\nHiển thị dữ liệu lịch sử giao dịch thực tế từ nguồn dữ liệu:\n- **Ngày**: ngày giao dịch\n- **Giá đóng cửa**: giá khớp lệnh đóng cửa thực tế\n- **Khối lượng**: tổng khối lượng khớp lệnh thực tế\n- **Mức thay đổi**: biến động giá so với phiên trước\n- **Xu hướng**: Tăng / Giảm / Ổn định\n\nKèm biểu đồ xu hướng giá & SMA(n kỳ). Số ngày hiển thị bằng số ngày dự báo đã chọn."
+          },
+          {
+            "questions": [
+              "Bảng hành vi backtest là gì?",
+              "Bảng Hành vi nhà đầu tư trong Backtest là gì?"
+            ],
+            "keywords": ["hành vi backtest", "backtest behavior", "PO PH PL PC PV"],
+            "answer": "**Bảng Hành vi & Backtest** (tab Backtest → sub-tab Dữ liệu lịch sử):\n\nHiển thị dữ liệu lịch sử kết hợp OHLCV thực tế và dự báo:\n- **Open/High/Low/Close/Volume**: giá thực tế\n- **PO**: Predicted_Open — giá mở cửa dự báo\n- **PH**: Predicted_High — giá cao nhất dự báo\n- **PL**: Predicted_Low — giá thấp nhất dự báo\n- **PC**: Predicted_Close — giá đóng cửa dự báo\n- **PV**: Predicted_Volume — khối lượng dự báo\n- **Độ biến động**: High − Low\n- **Tín hiệu xu hướng**: (Close − Open) / (High − Low)\n\nSau đó hiển thị bảng so sánh PC vs Close để tính MAE, RMSE, MAPE."
+          },
+          {
+            "questions": [
+              "Bảng phân bổ vốn là gì?",
+              "Bảng tỷ trọng danh mục là gì?"
+            ],
+            "keywords": ["phân bổ vốn", "capital allocation", "tỷ trọng", "weight"],
+            "answer": "**Bảng Phân bổ vốn** (tab Tối ưu danh mục):\n\n- **Mã cổ phiếu**: ticker\n- **Tỷ trọng**: % vốn phân bổ cho mã này (tối ưu Markowitz)\n- **Vốn phân bổ**: Tỷ trọng × Tổng vốn nhập vào\n- **Lợi nhuận kỳ vọng**: annualized return dựa trên log return lịch sử\n- **Độ biến động**: annualized volatility\n\n**Bảng Phân bổ nâng cao** (Risk Parity):\n- **Tỷ trọng gốc**: từ tối ưu Markowitz\n- **Tỷ trọng điều chỉnh**: 1/σ / Σ(1/σ) — ưu tiên mã ít biến động\n- **Vốn phân bổ điều chỉnh**: Tỷ trọng điều chỉnh × Tổng vốn"
+          },
+          {
+            "questions": [
+              "Bảng kế hoạch tái cân bằng là gì?",
+              "Chênh lệch SL trong tái cân bằng là gì?",
+              "Hành động Mua thêm Bán bớt Giữ là gì?"
+            ],
+            "keywords": ["kế hoạch tái cân bằng", "rebalance plan", "chênh lệch SL", "mua thêm", "bán bớt", "giữ"],
+            "answer": "**Bảng Kế hoạch tái cân bằng** (tab Tái cân bằng):\n\n- **Ticker**: mã cổ phiếu\n- **Giá hiện tại**: giá đóng cửa gần nhất\n- **SL hiện tại**: số lượng cổ phiếu đang nắm giữ\n- **Tỷ trọng hiện tại**: Giá × SL / Tổng giá trị danh mục\n- **Tỷ trọng mục tiêu**: tỷ trọng mong muốn (nhập thủ công)\n- **Chênh lệch SL**: số cổ phiếu cần mua (+) hoặc bán (−)\n  - Công thức: (Giá trị mục tiêu − Giá trị hiện tại) / Giá\n- **Hành động**:\n  - Mua thêm: Chênh lệch SL > 0\n  - Bán bớt: Chênh lệch SL < 0\n  - Giữ: Chênh lệch SL = 0"
+          },
+          {
+            "questions": [
+              "Tỷ trọng gợi ý là gì?",
+              "Tỷ trọng gợi ý theo hiệu suất 1 tháng là gì?"
+            ],
+            "keywords": ["tỷ trọng gợi ý", "suggested weight", "momentum weight"],
+            "answer": "**Tỷ trọng gợi ý** (tab Tái cân bằng):\n\nTỷ trọng được gợi ý tự động dựa trên hiệu suất 1 tháng gần nhất:\n\n**Công thức**:\n- Return_1M(i) = Close[−1] / Close[−22] − 1\n- Chỉ lấy mã có Return_1M > 0\n- Tỷ trọng gợi ý(i) = Return_1M(i) / Σ Return_1M(j) với j > 0\n\n**Ý nghĩa**: Phân bổ nhiều vốn hơn cho mã đang có đà tăng gần đây (momentum-based allocation).\n\nNgười dùng có thể điều chỉnh lại tỷ trọng mục tiêu theo ý muốn."
+          },
+          {
+            "questions": [
+              "Bảng lọc hiệu suất là gì?",
+              "Lọc theo chỉ số trong Backtest là gì?"
+            ],
+            "keywords": ["lọc hiệu suất", "filter metrics", "performance filter", "lọc chỉ số"],
+            "answer": "**Bảng lọc hiệu suất** (tab Backtest → Công cụ Backtest):\n\nSau khi backtest, hệ thống hiển thị bảng tổng hợp các chỉ số hiệu suất cho từng mã và chiến lược:\n- Các chỉ số bao gồm: Sharpe Ratio, Max Drawdown, Annualized Return, Win Rate, Profit Factor, VaR, v.v.\n\n**Tính năng lọc**:\n- Chọn chỉ số cần lọc\n- Nhập giá trị tối thiểu và tối đa\n- Sắp xếp theo chỉ số\n- Kết quả lọc dùng làm danh sách mã cho tab Tối ưu danh mục"
+          }
+        ]
+      },
+      "chien_luoc": {
+        "title": "🎯 Chiến lược & Tham số",
+        "faqs": [
+          {
+            "questions": [
+              "Chiến lược buy_and_hold là gì?",
+              "Buy and hold trong backtest là gì?"
+            ],
+            "keywords": ["buy_and_hold", "buy and hold", "mua và giữ"],
+            "answer": "**Buy and Hold** — Chiến lược mua và giữ dài hạn:\n- Mua cổ phiếu tại ngày đầu kỳ backtest và giữ đến ngày cuối\n- Không thực hiện giao dịch trong kỳ\n- Portfolio_Value(t) = Số lượng ban đầu × Close(t)\n- Ưu điểm: chi phí giao dịch thấp, không cần dự báo\n- Nhược điểm: chịu toàn bộ downside khi thị trường giảm"
+          },
+          {
+            "questions": [
+              "Chiến lược ma_crossover là gì?",
+              "MA crossover trong backtest là gì?",
+              "Golden cross death cross là gì?"
+            ],
+            "keywords": ["ma_crossover", "MA crossover", "golden cross", "death cross", "giao cắt trung bình"],
+            "answer": "**MA Crossover** — Chiến lược giao cắt đường trung bình:\n- Dùng 2 đường SMA: SMA ngắn (20 kỳ) và SMA dài (50 kỳ)\n- **Golden Cross**: SMA ngắn cắt lên SMA dài → Tín hiệu Mua\n- **Death Cross**: SMA ngắn cắt xuống SMA dài → Tín hiệu Bán\n- Ưu điểm: lọc nhiễu tốt\n- Nhược điểm: tín hiệu trễ, kém hiệu quả với thị trường sideway"
+          },
+          {
+            "questions": [
+              "Chiến lược momentum là gì?",
+              "Ngưỡng momentum là gì?"
+            ],
+            "keywords": ["momentum", "ngưỡng momentum", "threshold", "đà tăng giảm"],
+            "answer": "**Momentum** — Chiến lược theo đà:\n- Mua khi return gần đây > threshold (mặc định 5%)\n- Bán khi return < −threshold\n- Ngưỡng (threshold) điều chỉnh được trong slider\n- Ưu điểm: bắt được trend mạnh\n- Nhược điểm: dễ bị tổn thất khi đảo chiều đột ngột"
+          },
+          {
+            "questions": [
+              "Chiến lược bollinger là gì?",
+              "Bollinger Bands strategy là gì?"
+            ],
+            "keywords": ["bollinger", "bollinger bands strategy", "dải bollinger chiến lược"],
+            "answer": "**Bollinger Bands Strategy**:\n- Mua khi giá chạm Lower Band (quá bán)\n- Bán khi giá chạm Upper Band (quá mua)\n- Dải Bollinger: Middle = SMA(20), Upper/Lower = SMA(20) ± 2×std(20)\n- Ưu điểm: phù hợp thị trường dao động trong biên\n- Nhược điểm: kém hiệu quả khi trending mạnh"
+          },
+          {
+            "questions": [
+              "Chiến lược RSI là gì?",
+              "RSI strategy trong backtest là gì?"
+            ],
+            "keywords": ["rsi strategy", "RSI chiến lược", "quá mua quá bán chiến lược"],
+            "answer": "**RSI Strategy**:\n- Mua khi RSI < 30 (vùng quá bán)\n- Bán khi RSI > 70 (vùng quá mua)\n- RSI tính trên 14 kỳ (mặc định)\n- Ưu điểm: phù hợp thị trường dao động\n- Nhược điểm: RSI có thể ở vùng quá mua/quá bán lâu trong xu hướng mạnh"
+          },
+          {
+            "questions": [
+              "Số ngày backtest là gì?",
+              "Slider số ngày backtest là gì?"
+            ],
+            "keywords": ["số ngày backtest", "backtest days", "kỳ backtest"],
+            "answer": "**Số ngày backtest** (slider 30-365 ngày, mặc định 180):\n- Khoảng thời gian tính từ ngày gần nhất để thực hiện backtest\n- Ví dụ: 180 ngày = backtest trên 6 tháng gần nhất\n- Ảnh hưởng đến tất cả các chỉ số hiệu suất: return, drawdown, Sharpe, v.v.\n- Nên chọn đủ dài để có ý nghĩa thống kê (≥ 60 ngày)"
+          },
+          {
+            "questions": [
+              "Số ngày dự báo n_days là gì?",
+              "Slider số ngày dự báo là gì?",
+              "n_days trong train và dự báo phải khớp là sao?"
+            ],
+            "keywords": ["n_days", "số ngày dự báo", "forecast days", "horizon"],
+            "answer": "**Số ngày dự báo (n_days)** — Số ngày tương lai mô hình sẽ dự báo:\n- Mặc định: 7 ngày (1 tuần giao dịch)\n- Phạm vi: 1-30 ngày\n- **Quan trọng**: n_days phải khớp giữa lúc train và lúc dự báo\n  - Nếu train với n_days=7 nhưng dự báo n_days=14 → lỗi\n  - Thay đổi n_days → tự động train lại model\n- Mô hình học dự báo thẳng n_days bước (Direct Multi-Output) — không recursive"
+          },
+          {
+            "questions": [
+              "Lookback là gì?",
+              "Số ngày nhìn lại là gì?",
+              "Lookback tự động chọn như thế nào?"
+            ],
+            "keywords": ["lookback", "look_back", "số ngày nhìn lại", "window"],
+            "answer": "**Lookback** — Số ngày lịch sử dùng làm input cho mô hình:\n\nTự động chọn dựa trên lượng dữ liệu:\n- < 200 ngày dữ liệu → lookback = 30\n- 200-500 ngày → lookback = 60\n- > 500 ngày → lookback = 90\n\n**Ý nghĩa**: Model nhìn vào lookback ngày gần nhất để dự báo n_days tiếp theo.\n\nLookback lớn → bắt được pattern dài hạn nhưng cần nhiều data."
+          },
+          {
+            "questions": [
+              "Tổng vốn trong tối ưu danh mục là gì?",
+              "Nhập tổng vốn như thế nào?"
+            ],
+            "keywords": ["tổng vốn", "total capital", "vốn đầu tư", "capital"],
+            "answer": "**Tổng vốn (VNĐ)** — Số vốn muốn đầu tư vào danh mục:\n- Nhập vào ô text trong tab Tối ưu danh mục\n- Mặc định: 100,000,000 VNĐ (100 triệu)\n- Dùng để tính Vốn phân bổ = Tỷ trọng × Tổng vốn\n- Không ảnh hưởng đến tỷ trọng tối ưu — chỉ ảnh hưởng số tiền tuyệt đối"
+          }
+        ]
+      },
+      "tham_so_he_thong": {
+        "title": "⚙️ Tham số hệ thống",
+        "faqs": [
+          {
+            "questions": [
+              "Tiết kiệm RAM là gì?",
+              "Chế độ tiết kiệm RAM hoạt động như thế nào?"
+            ],
+            "keywords": ["tiết kiệm RAM", "MEM_SAFE_MODE", "batch size", "bộ nhớ"],
+            "answer": "**Chế độ tiết kiệm RAM** (sidebar):\n- Khi bật: xử lý dữ liệu theo batch nhỏ để giảm RAM\n- Số mã mỗi batch: điều chỉnh qua slider Batch size (5-200, mặc định 20)\n- Batch nhỏ → ít RAM hơn nhưng thời gian xử lý dài hơn\n- Batch lớn → nhanh hơn nhưng cần nhiều RAM\n- Khuyến nghị bật khi xử lý nhiều mã hoặc máy RAM thấp"
+          },
+          {
+            "questions": [
+              "Nguồn dữ liệu vnstock là gì?",
+              "Nguồn dữ liệu Yahoo Finance là gì?",
+              "Sự khác biệt giữa vnstock và Yahoo Finance là gì?"
+            ],
+            "keywords": ["vnstock", "Yahoo Finance", "nguồn dữ liệu", "VCI", "data source"],
+            "answer": "**Nguồn dữ liệu trong AIS**:\n\n**vnstock (VCI)** — Mặc định:\n- Nguồn: VCI (Chứng khoán Bản Việt)\n- Ticker format: mã thuần không suffix (ACB, FPT, VIC)\n- Đơn vị giá: nghìn đồng → tự động nhân 1000 khi lưu vào DB\n- Ưu điểm: dữ liệu VN gốc, không adjusted, ổn định\n- Lịch sử: từ ~2009 đến nay\n\n**Yahoo Finance**:\n- Ticker format: thêm suffix .VN (ACB.VN, FPT.VN)\n- Giá: adjusted price (đã điều chỉnh corporate action)\n- Ưu điểm: adjusted price nhất quán\n- Nhược điểm: cần suffix .VN"
+          },
+          {
+            "questions": [
+              "VN30 trong gợi ý mã là gì?",
+              "VN100 trong gợi ý mã là gì?"
+            ],
+            "keywords": ["VN30", "VN100", "gợi ý mã", "nhóm mã", "bluechip"],
+            "answer": "**Gợi ý nhóm mã** (sidebar, chỉ khi dùng vnstock):\n\n**VN30**: 30 mã bluechip lớn nhất, thanh khoản cao nhất HOSE\n- Gồm: ACB, BID, CTG, FPT, GAS, HPG, MBB, MSN, MWG, PLX, SAB, SHB, SSI, STB, TCB, VCB, VHM, VIC, VJC, VNM, VPB, VRE, và các mã khác\n- Cập nhật từ API vnstock Listing mỗi lần mở sidebar\n\n**VN100**: 100 mã lớn nhất HOSE\n- Bao gồm toàn bộ VN30 + thêm 70 mã tiếp theo\n\n**-- Tự nhập --**: Nhập thủ công mã cổ phiếu theo ý muốn"
+          },
+          {
+            "questions": [
+              "Phân quyền người dùng là gì?",
+              "Guest member premium có quyền gì?",
+              "Role trong AIS là gì?"
+            ],
+            "keywords": ["phân quyền", "role", "guest", "member", "premium", "admin", "quyền truy cập"],
+            "answer": "**Phân quyền người dùng trong AIS**:\n\n| Tab | Guest | Member | Premium |\n|-----|-------|--------|---------|\n| 📊 Dự báo | ✅ | ✅ | ✅ |\n| 📉 Phân tích rủi ro | ❌ | ✅ | ✅ |\n| 🔄 Backtest & Hiệu suất | ❌ | ✅ | ✅ |\n| ⚙️ Huấn luyện mô hình | ❌ | ❌ | ✅ |\n| 📈 Tối ưu danh mục | ❌ | ❌ | ✅ |\n| ♻️ Tái cân bằng | ❌ | ❌ | ✅ |\n| 🎯 Báo cáo | ❌ | ❌ | ✅ |\n\n**Báo cáo email theo role**:\n- Guest: chỉ Dự báo\n- Member: Dự báo + Rủi ro + Backtest\n- Premium: toàn bộ"
+          },
+          {
+            "questions": [
+              "SMA n kỳ trong biểu đồ là gì?",
+              "SMA trong biểu đồ dự báo tính như thế nào?"
+            ],
+            "keywords": ["SMA", "simple moving average", "biểu đồ SMA", "trung bình động dự báo"],
+            "answer": "**SMA trong biểu đồ dự báo** — Trung bình động của giá đóng cửa dự báo:\n\n**Công thức**: SMA(k) = Trung bình Predicted_Close của k ngày gần nhất\n\nTrong đó k = số ngày dự báo đã chọn (slider)\n\n**Ý nghĩa trong dự báo**:\n- Đường SMA làm mượt chuỗi dự báo\n- Nếu Predicted_Close > SMA → xu hướng tăng trong chuỗi dự báo\n- Nếu Predicted_Close < SMA → xu hướng giảm trong chuỗi dự báo\n\nXuất hiện trong biểu đồ sub-tab Dự báo chi tiết và Dự báo hành vi NĐT."
+          }
+        ]
+      }
+    }
+  }

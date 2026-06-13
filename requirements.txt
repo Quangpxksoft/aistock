@@ -23,6 +23,7 @@ python-dotenv
 keras-tcn
 psycopg[binary]
 sqlalchemy
+vnstock
 
 
 

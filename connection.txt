@@ -1,0 +1,30 @@
+Tôi sẽ gửi cho bạn một số đoạn code.
+Thống nhất trước là: Khi hỗ trợ tôi yêu cầu không tự ý thay đối cấu trúc chức năng, logic, giao diện. Không thay đổi, không bớt tên hàm, biến, lớp. Không thay đổi định nghĩa người dùng. Tuân thủ cấu trúc thư mục của dự án. Nếu có phát sinh hàm, biến hoặc chức năng thì phải đồng bộ và kế thừa xuyên suốt với các chức năng cũ. Dữ liệu không được giả lập hay nội suy, không hardcode, không mô phỏng, hạn chế fallback như là 1 kiểu hardcode trá hình, cần tìn ra nguyên nhân lỗi và sửa nguyên nhân chứ không phải che lỗi, không được đoán code mà phải rà line by line khi đưa ra giải pháp. 
+
+cd /Users/quangpx/ais && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; find . -name "*.pyc" -delete 2>/dev/null; echo "Done"
+
+
+Chạy app.py: streamlit run app.py  
+
+
+| -------------------- | --------------------------------------------------------------- |
+cat .env
+nano .env
+Kiểm tra kết nối: psql -U quangpx -d aistock -c "\dt"
+
+# ========== SERVER DB (Production) ==========
+# DATABASE_URL=postgresql://aistock_user:5NXGXFbcHRLntuWh6BsBqMwdY48G3KCj@dpg-d84ql2n7f7vs73a$
+
+# DB_HOST=dpg-d84ql2n7f7vs73a9preg-a.singapore-postgres.render.com
+# DB_NAME=aistock
+# DB_USER=aistock_user
+# DB_PASSWORD=5NXGXFbcHRLntuWh6BsBqMwdY48G3KCj
+# DB_PORT=5432
+# ========== LOCAL DB (Testing) ==========
+DATABASE_URL=postgresql://quangpx@localhost:5432/aistock
+DB_HOST=localhost
+DB_NAME=aistock
+DB_USER=quangpx
+DB_PASSWORD=
+DB_PORT=5432
+DB_ENV=local

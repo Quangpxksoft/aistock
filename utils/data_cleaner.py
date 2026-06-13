@@ -36,9 +36,9 @@ def clean_dataframe(df: pd.DataFrame, ticker: str) -> pd.DataFrame:
         df = df[required_cols]
 
     # Chuẩn hóa dữ liệu
-    df = df.dropna().copy()
+    df = df.dropna(subset=required_cols).copy()
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date").reset_index(drop=True)
-
     return df
+
 

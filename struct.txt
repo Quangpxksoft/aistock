@@ -1,0 +1,77 @@
+ai_investment_app/
+├── app.py                          # 🖥️ Ứng dụng Streamlit chính (giao diện người dùng)
+├── register_page.py                # Trang register hoặc upgrade
+├── login_page.py                   # Trang đăng nhập
+├── .env                            # Cấu hình thông tin SMTP
+├── config.py                       # ⚙️ Cấu hình hệ thống: tham số mặc định, đường dẫn,...
+├── fonts/                          # ⚙️ Chứa font DejaVuSans.ttf
+├── requirements.txt                # 📦 Danh sách thư viện cần cài đặt
+│
+├── assets/                               # 📂 
+│   └──logo.png
+├── models/                          # 📂 Lưu mô hình đã huấn luyện (LSTM, TCN
+│   ├── lstm/
+│   ├── tcn/
+│   └──
+|    
+│
+├── reports/                         # 📂 Báo cáo sinh ra từ dự báo/backtest (PDF, CSV)
+│   ├── sent/
+│   └── tmp/
+│
+├── logs/                            # 📂 Ghi log training, lỗi, hoạt động...
+│
+├── utils/                           # 📦 Các module chức năng, xử lý logic phía sau
+│   ├── data.py                      # Lấy giá, xử lý dữ liệu cơ bản
+|.  ├── __init__.py
+│   ├── data_cleaner.py              # Làm sạch, xử lý missing values,...
+│   ├── data_loader.py               # Hàm điều phối yfinance và vndirect (API)
+│   ├── 
+│   ├── 
+│   ├── lstm_model.py                # Mô hình dự báo giá Muti-Output LSTM: train, load, predict
+│   ├── tcn_model.py                 # Mô hình dự báo giá Muti-Output TCN: train, load, predict
+│   ├── 
+│   ├── backtest.py                  # Backtest các chiến lược
+│   ├── strategy.py                  # Các chiến lược giao dịch
+│   ├── performance.py               # Đánh giá hiệu suất dự báo và chiến lược
+│   ├── portfolio_optimizer.py       # Tối ưu hóa danh mục
+│   ├── rebalancing.py               # Tái cân bằng danh mục
+│   ├── reporting.py                 # Tạo báo cáo PDF / bảng / biểu đồ
+│   ├── batch_utils.py               # Các hàm phụ trợ cho xử lý hàng loạt (batch training/dự báo)
+│   ├── data_vnstock.py             # Lấy dữ liệu từ VNSTOCK
+│   ├── data_yfinance.py             # Lấy dữ liệu từ Yahoo Finance
+│   ├── date_utils.py                # Xử lý ngày tháng
+│   ├── user_manager.py              # Quản lý toàn bộ user: đăng ký, đăng nhập, nâng cấp role, logging ticker/email.
+|   ├── permissions.py               # Phân quyên người dùng
+|.  ├── backup_db.py                 # Backup dữ liệu
+|.  ├── upgrade_page.py              # Quản lý nâng cấp thành viên
+│   ├── email_scheduler.py           # Lịch tự động gửi email(hiện tại file này đang comment vì hệ thống gửi tự động gửi được nhưng chưa có dữ liệu report)
+│   └── email_sender.py              # Cấu hình email
+|   └── db_manager.py                # Modul làm việc với SQLite cho data.db - dự báo giá
+|   └── user_subscription.py         # Modul thanh toán và kích hoạt hạng tài khoản nguòi dùng
+|   └── admin_activate_page.py       # Trang kích hoạt hạng tài khoản nguòi dùng
+|   └── expire_subscriptions.py      # Tự động trở về guest khi hết hạn mà không gia hạn(chạy crontab, để thiết lập sau)
+|   └── user_history.py              # Modul ghi lịch sử quan tâm ticker của nguòi dùng
+|   └── notify_expired.py            # Modul cấu hình email và tự động nhắc hết hạn đăng ký thành viên
+|   └── chatbot.py                   # Quản lý Chatbot
+|   └──                              #  
+|   └──                              # 
+│
+├── database/                        # 📂 Cơ sở dữ liệu
+│   └── users.db                     # SQLite lưu dữ liệu người dùng
+|	└── table users.             # Quản lý thông tin người dùng
+|	└── table subscriptions.     # Thông tin về thanh toán
+|	└── table email_logs	     # Lưu thông tin log gửi email
+|       └── user_ticker_history	     # Lưu lịch sử ticker xem của user
+|   └── data.db                      # SQLite lưu dữ liệu gốc và giá dự báo ticker
+|   └──                              # 
+│
+└── init_db.py                       # Khởi tạo database ban đầu
+├── knowledge_base/                  # 📂 Lưu trữ thư viên chatbot .json
+	└── forecast.json             # Thư viện forecast
+	└── backtest_perf.json        # Thư viện backtest_perf.json
+	└── optimize.json             # Thư viện optimize.json
+	└── rebalance.json            # Thư viện rebalance.json
+	└── report.json               # Thư viện report.json
+	└── risk.json                 # Thư viện risk.json
+

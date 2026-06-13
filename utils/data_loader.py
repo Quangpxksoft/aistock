@@ -1,7 +1,7 @@
 # utils/data_loader.py
 from datetime import date
 from utils.data_yfinance import load_data_yf
-from utils.data_vndirect import load_data_vnd
+from utils.data_vnstock import load_data_vnstock
 from utils.date_utils import to_yyyymmdd_str
 
 
@@ -25,8 +25,8 @@ def load_data(ticker, start_date="2010-01-01", end_date=None, source="yf"):
     end_date = to_yyyymmdd_str(end_date) if end_date else to_yyyymmdd_str(date.today())
 
     # ✅ Điều phối theo nguồn
-    if source == "vnd":
-        return load_data_vnd(ticker, start_date, end_date)
+    if source in ("vnd", "vnstock"):
+        return load_data_vnstock(ticker, start_date, end_date)
     elif source == "yf":
         return load_data_yf(ticker, start_date, end_date)
     else:

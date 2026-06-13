@@ -1,0 +1,30 @@
+(venv) quangpx@Phams-MacBook-Pro ais % cd /Users/quangpx/ais && python -c "
+import yfinance as yf
+tickers = ['VCB.VN','BID.VN','CTG.VN','TCB.VN','ACB.VN','MBB.VN','VPB.VN',
+           'STB.VN','HDB.VN','SHB.VN','VIC.VN','VHM.VN','FPT.VN','HPG.VN',
+           'MSN.VN','MWG.VN','GAS.VN','SSI.VN','VND.VN','PNJ.VN']
+for tk in tickers:
+    df = yf.download(tk, start='2020-01-01', progress=False, auto_adjust=True)
+    print(f'{tk}: {len(df)} rows')
+"
+VCB.VN: 1672 rows
+BID.VN: 1672 rows
+CTG.VN: 1681 rows
+TCB.VN: 1672 rows
+ACB.VN: 1428 rows
+MBB.VN: 1681 rows
+VPB.VN: 1672 rows
+STB.VN: 1672 rows
+HDB.VN: 1681 rows
+SHB.VN: 1682 rows
+VIC.VN: 1681 rows
+VHM.VN: 1672 rows
+FPT.VN: 1681 rows
+HPG.VN: 1681 rows
+MSN.VN: 1672 rows
+MWG.VN: 1672 rows
+GAS.VN: 1681 rows
+SSI.VN: 1672 rows
+VND.VN: 1673 rows
+PNJ.VN: 1681 rows
+(venv) quangpx@Phams-MacBook-Pro ais % 
