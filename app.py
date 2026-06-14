@@ -331,6 +331,13 @@ def page_home():
         padding-top: 0.5rem !important;
         margin-top: -2rem !important;
     }
+    section[data-testid="stSidebar"] .stSlider {
+        margin-bottom: -1rem !important;
+    }
+    section[data-testid="stSidebar"] h3 {
+        margin-top: -0.5rem !important;
+        margin-bottom: 0rem !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     st.write(f"Xin chào **{user['full_name']}**!")
