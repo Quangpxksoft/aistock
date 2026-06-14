@@ -351,13 +351,15 @@ def page_home():
     # ========= Sidebar ===========
     
     # ✅ Chọn nguồn dữ liệu
+    st.sidebar.markdown("### :red[Nguồn dữ liệu:]")
     data_source = st.sidebar.selectbox(
         "Nguồn dữ liệu:",
         ["vnstock", "yf"],
         format_func=lambda x: "vnstock (VCI)" if x == "vnstock" else "Yahoo Finance",
         index=0,
         key="data_source",
-        help="Chọn nguồn để tải dữ liệu: vnstock (VCI) hoặc Yahoo Finance"
+        help="Chọn nguồn để tải dữ liệu: vnstock (VCI) hoặc Yahoo Finance",
+        label_visibility="collapsed"
     )
     # Detect đổi nguồn → reset data cũ + cảnh báo
     prev_source = st.session_state.get("data_source_prev")
