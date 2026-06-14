@@ -71,7 +71,7 @@ from utils.upgrade_page import upgrade_page
 # ---- local utils -----------------------------------------------------------
 from utils import (
     data_cleaner, portfolio_optimizer, risk_metrics,
-    backtest, performance, strategy, reporting
+    backtest, performance, reporting
 )
 from config import ensure_dirs
 

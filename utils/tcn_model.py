@@ -5,11 +5,6 @@ import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-
-# Giới hạn RAM TensorFlow — tránh OOM trên server RAM thấp
-tf.config.threading.set_inter_op_parallelism_threads(1)
-tf.config.threading.set_intra_op_parallelism_threads(1)
-
 from sklearn.preprocessing import RobustScaler
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Model, load_model
@@ -394,7 +389,6 @@ def train_tcn_model(df: pd.DataFrame, ticker: str,
     -------
     (model, scaler_bundle)
     """
-    # tf.config.experimental.enable_op_determinism()  # ← chuyển vào đây
     tf.keras.backend.clear_session()
 
     _validate_df(df)
@@ -457,7 +451,7 @@ def train_tcn_model(df: pd.DataFrame, ticker: str,
         epochs=epochs,
         batch_size=batch_size,
         shuffle=False,
-        verbose=0,
+        verbose=1,
         callbacks=[early_stop, reduce_lr]
     )
 
