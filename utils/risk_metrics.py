@@ -7,6 +7,9 @@ def calculate_risk_metrics(df: pd.DataFrame, alpha=0.05) -> pd.DataFrame:
     """
     returns = df["Close"].pct_change().dropna()
 
+    if returns.empty:
+        raise ValueError("Không đủ dữ liệu để tính risk metrics (cần ít nhất 2 dòng Close)")
+
     # Tính các metric
     var = np.percentile(returns, 100 * alpha)
     cvar = returns[returns <= var].mean()
