@@ -5,6 +5,11 @@ import random
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+
+# Giới hạn RAM TensorFlow — tránh OOM trên server RAM thấp
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 from sklearn.preprocessing import RobustScaler
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import Model, load_model
@@ -17,7 +22,7 @@ random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 tf.keras.utils.set_random_seed(SEED)
-# tf.config.experimental.enable_op_determinism()
+tf.config.experimental.enable_op_determinism()
 
 # -------------------------------
 # 📂 Thư mục lưu TCN models
@@ -389,7 +394,7 @@ def train_tcn_model(df: pd.DataFrame, ticker: str,
     -------
     (model, scaler_bundle)
     """
-    tf.config.experimental.enable_op_determinism()  # ← chuyển vào đây
+    # tf.config.experimental.enable_op_determinism()  # ← chuyển vào đây
     tf.keras.backend.clear_session()
 
     _validate_df(df)
