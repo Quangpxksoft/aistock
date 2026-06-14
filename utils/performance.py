@@ -26,16 +26,19 @@ def calculate_performance_metrics(df, risk_free_rate=0.0, mar=0.1):
     days = (df["Date"].iloc[-1] - df["Date"].iloc[0]).days
     years = days / 365.0
 
-    # CAGR
-    cagr = cumulative.iloc[-1] ** (1 / years) - 1
+    # CAGR — guard years=0 (data chỉ có 1 ngày hoặc cùng ngày) tránh ZeroDivisionError
+    if years > 0:
+        cagr = cumulative.iloc[-1] ** (1 / years) - 1
+    else:
+        cagr = np.nan
     metrics["CAGR"] = cagr
 
     # Volatility
     volatility = returns.std() * np.sqrt(252)
     metrics["Volatility"] = volatility
 
-    # Sharpe Ratio
-    sharpe = (returns.mean() * 252 - risk_free_rate) / (returns.std() * np.sqrt(252))
+    # Sharpe Ratio — thêm 1e-9 để tránh chia 0 khi returns.std()==0, nhất quán với Sortino
+    sharpe = (returns.mean() * 252 - risk_free_rate) / (returns.std() * np.sqrt(252) + 1e-9)
     metrics["Sharpe Ratio"] = sharpe
 
     # Sortino Ratio
