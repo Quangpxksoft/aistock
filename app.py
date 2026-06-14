@@ -422,7 +422,6 @@ def page_home():
     max_drawdown = max_drawdown_percent / 100.0
 
     # ---- RAM optimisation controls --------------------------------------------
-    st.sidebar.divider()
     st.sidebar.subheader("⚙️ Quản lý bộ nhớ")
     MEM_SAFE_MODE = st.sidebar.checkbox("🚦 Bật chế độ tiết kiệm RAM", value=True, key="mem_safe")
 
